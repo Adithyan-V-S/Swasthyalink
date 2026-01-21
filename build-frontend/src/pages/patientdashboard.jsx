@@ -44,7 +44,7 @@ const formatDateSafe = (value) => {
     if (typeof asDate?.toLocaleDateString === 'function' && !isNaN(asDate)) {
       return asDate.toLocaleDateString();
     }
-  } catch (_) {}
+  } catch (_) { }
   return 'N/A';
 };
 
@@ -98,7 +98,7 @@ const PatientDashboard = () => {
   const [uid, setUid] = useState("");
   const { currentUser } = useAuth();
   const currentUserInfo = useCurrentUser();
-  
+
   const [activeIdx, setActiveIdx] = useState(0);
   const [familyMembers, setFamilyMembers] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -127,38 +127,58 @@ const PatientDashboard = () => {
 
   // Move getSidebarLinks inside component to access notifications state
   const getSidebarLinks = () => [
-    { label: "Dashboard", icon: (
+    {
+      label: "Dashboard", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M13 5v6h6m-6 0v6m0 0H7m6 0h6" /></svg>
-      ) },
-    { label: "My Records", icon: (
+      )
+    },
+    {
+      label: "My Records", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-      ) },
-    { label: "Family", icon: (
+      )
+    },
+    {
+      label: "Family", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-      ) },
-    { label: "Appointments", icon: (
+      )
+    },
+    {
+      label: "Appointments", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-      ), badge: (notifications || []).filter(n => !n.read && n.type === 'appointment').length },
-    { label: "Prescriptions", icon: (
+      ), badge: (notifications || []).filter(n => !n.read && n.type === 'appointment').length
+    },
+    {
+      label: "Prescriptions", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 4h6a2 2 0 002-2v-5a2 2 0 00-2-2h-6a2 2 0 00-2 2v5a2 2 0 002 2z" /></svg>
-      ), badge: (notifications || []).filter(n => !n.read && n.type === 'health_record').length },
-    { label: "Doctors", icon: (
+      ), badge: (notifications || []).filter(n => !n.read && n.type === 'health_record').length
+    },
+    {
+      label: "Doctors", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 7v-7m0 0l-9-5m9 5l9-5" /></svg>
-      ), badge: (pendingRequests || []).length },
-    { label: "Settings", icon: (
+      ), badge: (pendingRequests || []).length
+    },
+    {
+      label: "Settings", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
-      ) },
-    { label: "Profile", icon: (
+      )
+    },
+    {
+      label: "Profile", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-      ) },
-    { label: "Game", icon: (
+      )
+    },
+    {
+      label: "Game", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6h13M9 6l-7 7 7 7" /></svg>
-      ) },
+      )
+    },
   ];
 
-  const helpSupportLink = { label: "Help & Support", icon: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 14v.01M12 10a4 4 0 11-8 0 4 4 0 018 0zm0 0v4m0 4h.01" /></svg>
-  )};
+  const helpSupportLink = {
+    label: "Help & Support", icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 14v.01M12 10a4 4 0 11-8 0 4 4 0 018 0zm0 0v4m0 4h.01" /></svg>
+    )
+  };
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -178,7 +198,7 @@ const PatientDashboard = () => {
       const redirectTab = localStorage.getItem('patientDashboardTab');
       if (redirectTab) {
         console.log('🔔 Notification redirect detected:', redirectTab);
-        
+
         // Map tab names to indices
         const tabMap = {
           'doctors': 5,
@@ -190,13 +210,13 @@ const PatientDashboard = () => {
           'profile': 7,
           'game': 8
         };
-        
+
         const tabIndex = tabMap[redirectTab];
         if (tabIndex !== undefined) {
           console.log('📍 Redirecting to tab index:', tabIndex);
           setActiveIdx(tabIndex);
         }
-        
+
         // Clear the redirect flag
         localStorage.removeItem('patientDashboardTab');
       }
@@ -205,7 +225,7 @@ const PatientDashboard = () => {
     // Check immediately and after a short delay to ensure component is mounted
     checkNotificationRedirect();
     const timeoutId = setTimeout(checkNotificationRedirect, 100);
-    
+
     return () => clearTimeout(timeoutId);
   }, []);
 
@@ -253,7 +273,7 @@ const PatientDashboard = () => {
     try {
       console.log('👥 Loading family members for user:', currentUser?.uid);
       console.log('👥 Current user object:', currentUser);
-      
+
       if (!currentUser?.uid) {
         console.log('👥 No current user, skipping family members load');
         setFamilyMembers([]);
@@ -282,11 +302,11 @@ const PatientDashboard = () => {
         : 'https://swasthyalink-backend-v2.onrender.com/api/family';
 
       console.log('🌐 Making API call to:', `${API_BASE}/network?uid=${currentUser.uid}`);
-      
+
       // Add timeout to prevent hanging requests
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
+
       const response = await fetch(`${API_BASE}/network?uid=${currentUser.uid}`, {
         method: 'GET',
         headers: {
@@ -295,7 +315,7 @@ const PatientDashboard = () => {
         },
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
 
       console.log('📡 API response status:', response.status);
@@ -303,9 +323,9 @@ const PatientDashboard = () => {
 
       if (!response.ok) {
         let errorData = {};
-        try { errorData = await response.json(); } catch (_) {}
+        try { errorData = await response.json(); } catch (_) { }
         console.error('❌ API error response:', errorData);
-        
+
         // If API fails, use mock data as fallback
         console.log('🔄 API failed, using mock family members as fallback');
         const mockFamilyMembers = [
@@ -346,7 +366,7 @@ const PatientDashboard = () => {
 
       const data = await response.json();
       console.log('✅ Family members fetched from API:', data);
-      
+
       if (data.success && data.network) {
         console.log('👥 Real family members loaded:', data.network);
         setFamilyMembers(data.network);
@@ -354,7 +374,7 @@ const PatientDashboard = () => {
         console.log('👥 No family members found in API response');
         setFamilyMembers([]);
       }
-      
+
     } catch (error) {
       console.error('❌ Error loading family members:', error);
       setFamilyMembers([]);
@@ -366,7 +386,7 @@ const PatientDashboard = () => {
       console.log('💊 Loading prescriptions for user:', currentUser?.uid);
       console.log('💊 Current user object:', currentUser);
       setPrescriptionsLoading(true);
-      
+
       // For testing purposes, add a mock prescription if API fails
       let response;
       try {
@@ -374,7 +394,7 @@ const PatientDashboard = () => {
         console.log('💊 Raw API response:', response);
       } catch (apiError) {
         console.error('❌ API call failed, using mock data:', apiError);
-        
+
         // Create mock prescription for testing
         response = {
           success: true,
@@ -396,16 +416,16 @@ const PatientDashboard = () => {
           }]
         };
       }
-      
+
       if (response.success) {
         console.log('💊 Prescriptions loaded from API:', response);
         console.log('💊 Number of prescriptions:', response.prescriptions?.length || 0);
-        
+
         // Transform the prescription data to match the UI format
         const transformedPrescriptions = response.prescriptions.map(prescription => {
           // Get the first medication for display (since UI expects single medication)
           const firstMedication = prescription.medications && prescription.medications[0];
-          
+
           return {
             id: prescription.id,
             medication: firstMedication?.name || 'Unknown Medication',
@@ -415,17 +435,17 @@ const PatientDashboard = () => {
             instructions: firstMedication?.instructions || prescription.instructions || 'No special instructions',
             doctorName: prescription.doctorName || 'Unknown Doctor',
             doctorSpecialization: prescription.doctorSpecialization || 'General Medicine',
-            status: prescription.status === 'sent' ? 'Active' : 
-                   prescription.status === 'filled' ? 'Completed' : 
-                   prescription.status === 'cancelled' ? 'Cancelled' : 'Pending',
+            status: prescription.status === 'sent' ? 'Active' :
+              prescription.status === 'filled' ? 'Completed' :
+                prescription.status === 'cancelled' ? 'Cancelled' : 'Pending',
             prescribedDate: new Date(prescription.createdAt).toLocaleDateString(),
-            prescribedTime: new Date(prescription.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            prescribedTime: new Date(prescription.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             notes: prescription.notes || '',
             refills: '0', // Default refills
             doctorAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctorName || 'Doctor')}&background=4f46e5&color=fff&size=48`
           };
         });
-        
+
         console.log('💊 Setting prescriptions to:', transformedPrescriptions);
         setPrescriptions(transformedPrescriptions);
         console.log('💊 Prescriptions state should now be updated');
@@ -459,7 +479,7 @@ const PatientDashboard = () => {
           getPendingRequests(currentUser.uid, currentUser.email, currentUser),
           getConnectedDoctors(currentUser.uid, currentUser.email, currentUser)
         ]);
-        
+
         console.log('PatientDashboard: Pending requests:', pendingReqs);
         console.log('PatientDashboard: Connected doctors:', connectedDocs);
         setPendingRequests(pendingReqs || []);
@@ -477,10 +497,10 @@ const PatientDashboard = () => {
           console.log('PatientDashboard: connectedDocs is invalid, setting empty array');
           setConnectedDoctors([]);
         }
-        
+
         // Log success message
         console.log('PatientDashboard: Successfully loaded requests and doctors data');
-        
+
         // Show notification if there are pending requests
         if (pendingReqs && pendingReqs.length > 0) {
           console.log('PatientDashboard: Found pending requests, showing notification');
@@ -516,7 +536,7 @@ const PatientDashboard = () => {
       const member = {
         id: Date.now(),
         ...newFamilyMember,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newFamilyMember.name)}&background=${Math.floor(Math.random()*16777215).toString(16)}&color=fff&size=64`,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newFamilyMember.name)}&background=${Math.floor(Math.random() * 16777215).toString(16)}&color=fff&size=64`,
         lastAccess: "Never"
       };
       setFamilyMembers(prev => [...(prev || []), member]);
@@ -529,7 +549,7 @@ const PatientDashboard = () => {
         isEmergencyContact: false
       });
       setShowAddFamily(false);
-      
+
       // Add notification
       const notification = {
         id: Date.now(),
@@ -545,7 +565,7 @@ const PatientDashboard = () => {
   const handleRemoveFamilyMember = (id) => {
     const member = (familyMembers || []).find(m => m.id === id);
     setFamilyMembers(prev => (prev || []).filter(m => m.id !== id));
-    
+
     // Add notification
     const notification = {
       id: Date.now(),
@@ -558,10 +578,10 @@ const PatientDashboard = () => {
   };
 
   const handleUpdateAccessLevel = (id, newLevel) => {
-    setFamilyMembers(prev => (prev || []).map(m => 
+    setFamilyMembers(prev => (prev || []).map(m =>
       m.id === id ? { ...m, accessLevel: newLevel } : m
     ));
-    
+
     const member = (familyMembers || []).find(m => m.id === id);
     const notification = {
       id: Date.now(),
@@ -588,9 +608,9 @@ const PatientDashboard = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
       const result = await response.json();
-      
+
       if (result.success) {
         console.log('✅ Migration completed successfully!');
         console.log(`📊 ${result.updatesCount} connections updated`);
@@ -678,10 +698,10 @@ const PatientDashboard = () => {
   const handleDeclineRequest = async (request) => {
     try {
       console.log('❌ Declining request from:', request.doctor?.name);
-      
+
       // Remove from pending requests
       setPendingRequests(prev => (prev || []).filter(req => req.id !== request.id));
-      
+
       // Add decline notification
       const notification = {
         id: Date.now(),
@@ -691,7 +711,7 @@ const PatientDashboard = () => {
         read: false
       };
       setNotifications(prev => [notification, ...(prev || [])]);
-      
+
       console.log('❌ Doctor connection declined');
     } catch (error) {
       console.error('Error declining request:', error);
@@ -712,30 +732,29 @@ const PatientDashboard = () => {
             🔄 Fix Connections
           </button>
         </div>
-        
+
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {(familyMembers || []).map((member) => (
             <div key={member.uid || member.id} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
               <div className="flex items-center mb-4">
-                <img 
-                  src={member.photoURL || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=4f46e5&color=fff&size=48`} 
-                  alt={member.name} 
-                  className="w-12 h-12 rounded-full mr-3" 
+                <img
+                  src={member.photoURL || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=4f46e5&color=fff&size=48`}
+                  alt={member.name}
+                  className="w-12 h-12 rounded-full mr-3"
                 />
                 <div>
                   <h3 className="font-semibold text-gray-800">{member.name}</h3>
                   <p className="text-sm text-gray-600">{member.relationship}</p>
                 </div>
-              </div>  
+              </div>
               <div className="space-y-2 mb-4">
                 <p className="text-sm text-gray-600">{member.email}</p>
                 <p className="text-sm text-gray-600">{member.phone || 'Not provided'}</p>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    member.accessLevel === 'full' ? 'bg-green-100 text-green-800' :
+                  <span className={`px-2 py-1 text-xs rounded-full ${member.accessLevel === 'full' ? 'bg-green-100 text-green-800' :
                     member.accessLevel === 'limited' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
+                      'bg-red-100 text-red-800'
+                    }`}>
                     {member.accessLevel} access
                   </span>
                   {member.isEmergencyContact && (
@@ -745,7 +764,7 @@ const PatientDashboard = () => {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex gap-2">
                 <button
                   onClick={() => {
@@ -832,11 +851,10 @@ const PatientDashboard = () => {
                     </div>
                   </td>
                   <td className="px-4 py-2 border-b">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      member.accessLevel === 'full' ? 'bg-green-100 text-green-800' :
+                    <span className={`px-2 py-1 text-xs rounded-full ${member.accessLevel === 'full' ? 'bg-green-100 text-green-800' :
                       member.accessLevel === 'limited' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
+                        'bg-red-100 text-red-800'
+                      }`}>
                       {member.accessLevel}
                     </span>
                   </td>
@@ -860,9 +878,8 @@ const PatientDashboard = () => {
         {(notifications || []).map((notification) => (
           <div
             key={notification.id}
-            className={`p-4 rounded-lg border-l-4 ${
-              notification.read ? 'bg-gray-50 border-gray-300' : 'bg-blue-50 border-blue-400'
-            }`}
+            className={`p-4 rounded-lg border-l-4 ${notification.read ? 'bg-gray-50 border-gray-300' : 'bg-blue-50 border-blue-400'
+              }`}
             onClick={() => markNotificationAsRead(notification.id)}
           >
             <div className="flex justify-between items-start">
@@ -887,118 +904,117 @@ const PatientDashboard = () => {
     console.log('🔍 prescriptionsLoading:', prescriptionsLoading);
     console.log('🔍 prescriptions array:', prescriptions);
     console.log('🔍 prescriptions length:', prescriptions.length);
-    
+
     return (
       <div className="w-full max-w-6xl space-y-8">
         <section className="bg-white rounded-xl shadow-lg p-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-indigo-700">My Prescriptions</h2>
-          {isTestUser() && (
-            <button
-              onClick={() => {
-                const mockNotification = {
-                  id: 'test-notification-' + Date.now(),
-                  type: 'doctor_connection_request',
-                  title: 'Test Doctor Request',
-                  message: 'Dr. Test Doctor wants to connect with you',
-                  timestamp: new Date(),
-                  read: false
-                };
-                setNotifications(prev => [mockNotification, ...prev]);
-                console.log('Test notification added:', mockNotification);
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
-            >
-              Test Notification
-            </button>
-          )}
-        </div>
-        {prescriptionsLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">Loading Prescriptions...</h3>
-            <p className="text-gray-500">Please wait while we fetch your prescriptions.</p>
+            {isTestUser() && (
+              <button
+                onClick={() => {
+                  const mockNotification = {
+                    id: 'test-notification-' + Date.now(),
+                    type: 'doctor_connection_request',
+                    title: 'Test Doctor Request',
+                    message: 'Dr. Test Doctor wants to connect with you',
+                    timestamp: new Date(),
+                    read: false
+                  };
+                  setNotifications(prev => [mockNotification, ...prev]);
+                  console.log('Test notification added:', mockNotification);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+              >
+                Test Notification
+              </button>
+            )}
           </div>
-        ) : prescriptions.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">💊</div>
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">No Prescriptions Yet</h3>
-            <p className="text-gray-500">Your prescriptions will appear here once your doctor writes them.</p>
-            <p className="text-sm text-gray-400 mt-2">
-              Connect with doctors first, then they can write prescriptions for you.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            {prescriptions.map((prescription) => (
-              <div key={prescription.id} className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                {/* Doctor Avatar */}
-                <img 
-                  src={prescription.doctorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctorName)}&background=4f46e5&color=fff&size=48`} 
-                  alt={prescription.doctorName} 
-                  className="w-10 h-10 rounded-full flex-shrink-0" 
-                />
-                
-                {/* Prescription Content */}
-                <div className="flex-1 min-w-0">
-                  {/* Header with Doctor Info and Timestamp */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <h3 className="font-semibold text-gray-900 text-sm">{prescription.doctorName}</h3>
-                      <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
-                        {prescription.doctorSpecialization}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {prescription.prescribedDate} at {prescription.prescribedTime}
-                    </div>
-                  </div>
-                  
-                  {/* Prescription Message */}
-                  <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+          {prescriptionsLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+              <h3 className="text-xl font-semibold text-gray-600 mb-2">Loading Prescriptions...</h3>
+              <p className="text-gray-500">Please wait while we fetch your prescriptions.</p>
+            </div>
+          ) : prescriptions.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">💊</div>
+              <h3 className="text-xl font-semibold text-gray-600 mb-2">No Prescriptions Yet</h3>
+              <p className="text-gray-500">Your prescriptions will appear here once your doctor writes them.</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Connect with doctors first, then they can write prescriptions for you.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {prescriptions.map((prescription) => (
+                <div key={prescription.id} className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  {/* Doctor Avatar */}
+                  <img
+                    src={prescription.doctorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctorName)}&background=4f46e5&color=fff&size=48`}
+                    alt={prescription.doctorName}
+                    className="w-10 h-10 rounded-full flex-shrink-0"
+                  />
+
+                  {/* Prescription Content */}
+                  <div className="flex-1 min-w-0">
+                    {/* Header with Doctor Info and Timestamp */}
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium text-gray-900 text-lg">{prescription.medication}</h4>
-                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                        prescription.status === 'Active' ? 'bg-green-100 text-green-800' :
-                        prescription.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {prescription.status}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <h3 className="font-semibold text-gray-900 text-sm">{prescription.doctorName}</h3>
+                        <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
+                          {prescription.doctorSpecialization}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {prescription.prescribedDate} at {prescription.prescribedTime}
+                      </div>
                     </div>
-                    
-                    {/* Prescription Details */}
-                    <div className="space-y-2 text-sm text-gray-700">
-                      <div className="flex items-center space-x-4">
-                        <span><strong>Dosage:</strong> {prescription.dosage}</span>
-                        <span><strong>Frequency:</strong> {prescription.frequency}</span>
+
+                    {/* Prescription Message */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-gray-900 text-lg">{prescription.medication}</h4>
+                        <span className={`px-2 py-1 text-xs rounded-full font-medium ${prescription.status === 'Active' ? 'bg-green-100 text-green-800' :
+                          prescription.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                          {prescription.status}
+                        </span>
                       </div>
-                      <div className="flex items-center space-x-4">
-                        <span><strong>Duration:</strong> {prescription.duration}</span>
-                        <span><strong>Refills:</strong> {prescription.refills}</span>
+
+                      {/* Prescription Details */}
+                      <div className="space-y-2 text-sm text-gray-700">
+                        <div className="flex items-center space-x-4">
+                          <span><strong>Dosage:</strong> {prescription.dosage}</span>
+                          <span><strong>Frequency:</strong> {prescription.frequency}</span>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          <span><strong>Duration:</strong> {prescription.duration}</span>
+                          <span><strong>Refills:</strong> {prescription.refills}</span>
+                        </div>
+
+                        {prescription.instructions && (
+                          <div className="mt-2 p-2 bg-blue-50 rounded border-l-4 border-blue-400">
+                            <p><strong>Instructions:</strong> {prescription.instructions}</p>
+                          </div>
+                        )}
+
+                        {prescription.notes && (
+                          <div className="mt-2 p-2 bg-yellow-50 rounded border-l-4 border-yellow-400">
+                            <p><strong>Notes:</strong> {prescription.notes}</p>
+                          </div>
+                        )}
                       </div>
-                      
-                      {prescription.instructions && (
-                        <div className="mt-2 p-2 bg-blue-50 rounded border-l-4 border-blue-400">
-                          <p><strong>Instructions:</strong> {prescription.instructions}</p>
-                        </div>
-                      )}
-                      
-                      {prescription.notes && (
-                        <div className="mt-2 p-2 bg-yellow-50 rounded border-l-4 border-yellow-400">
-                          <p><strong>Notes:</strong> {prescription.notes}</p>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    );
   };
 
   const renderDoctorsSection = () => (
@@ -1153,28 +1169,28 @@ const PatientDashboard = () => {
                 </div>
               </div>
 
-               {/* Emergency Notifications - Only for test users */}
-               {isTestUser() && (
-                 <div className="lg:col-span-3 bg-red-50 rounded-2xl shadow-lg p-6 border border-red-200">
-                   <div className="flex items-center justify-between">
-                     <h3 className="font-semibold text-red-800">Emergency Alerts</h3>
-                     <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                       {notifications.filter(n => n.type === 'emergency_alert').length}
-                     </span>
-                   </div>
-                   <div className="mt-4 space-y-2">
-                     {notifications.filter(n => n.type === 'emergency_alert').slice(0, 2).map((notification) => (
-                       <div key={notification.id} className="bg-white rounded-lg p-3 border border-red-200">
-                         <p className="text-sm font-medium text-red-800">{notification.title}</p>
-                         <p className="text-xs text-red-600 mt-1">{notification.message}</p>
-                       </div>
-                     ))}
-                     {notifications.filter(n => n.type === 'emergency_alert').length === 0 && (
-                       <p className="text-sm text-red-600">No emergency alerts</p>
-                     )}
-                   </div>
-                 </div>
-               )}
+              {/* Emergency Notifications - Only for test users */}
+              {isTestUser() && (
+                <div className="lg:col-span-3 bg-red-50 rounded-2xl shadow-lg p-6 border border-red-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-red-800">Emergency Alerts</h3>
+                    <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                      {notifications.filter(n => n.type === 'emergency_alert').length}
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {notifications.filter(n => n.type === 'emergency_alert').slice(0, 2).map((notification) => (
+                      <div key={notification.id} className="bg-white rounded-lg p-3 border border-red-200">
+                        <p className="text-sm font-medium text-red-800">{notification.title}</p>
+                        <p className="text-xs text-red-600 mt-1">{notification.message}</p>
+                      </div>
+                    ))}
+                    {notifications.filter(n => n.type === 'emergency_alert').length === 0 && (
+                      <p className="text-sm text-red-600">No emergency alerts</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Integrated QR card */}
               <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center">
@@ -1343,10 +1359,10 @@ const PatientDashboard = () => {
             <div className="max-w-2xl mx-auto">
               <div className="bg-gray-50 rounded-lg p-6 mb-6">
                 <div className="flex items-center space-x-4 mb-4">
-                  <img 
-                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || 'User')}&background=4f46e5&color=fff&size=80`} 
-                    alt="Profile" 
-                    className="w-20 h-20 rounded-full" 
+                  <img
+                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || 'User')}&background=4f46e5&color=fff&size=80`}
+                    alt="Profile"
+                    className="w-20 h-20 rounded-full"
                   />
                   <div>
                     <h3 className="text-xl font-semibold text-gray-900">{currentUser?.name || 'User'}</h3>
@@ -1358,7 +1374,7 @@ const PatientDashboard = () => {
                   Edit Profile
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="font-semibold text-gray-900 mb-2">Personal Information</h4>
@@ -1381,7 +1397,7 @@ const PatientDashboard = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="font-semibold text-gray-900 mb-2">Medical Information</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1416,7 +1432,7 @@ const PatientDashboard = () => {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      
+
       <div className="flex">
         {/* Sidebar */}
         <div className="w-64 bg-white shadow-lg min-h-screen">
@@ -1426,9 +1442,8 @@ const PatientDashboard = () => {
                 <button
                   key={idx}
                   onClick={() => setActiveIdx(idx)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                    activeIdx === idx ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${activeIdx === idx ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
                 >
                   {link.icon}
                   <span className="flex-1">{link.label}</span>
@@ -1449,14 +1464,14 @@ const PatientDashboard = () => {
                   <div className="font-semibold text-gray-900 text-sm">{currentUserInfo.name}</div>
                   <div className="text-xs text-gray-500">Patient</div>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveIdx(7)} // Profile tab index
                   className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
                 >
                   Edit
                 </button>
               </div>
-              
+
               <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100">
                 {helpSupportLink.icon}
                 <span>{helpSupportLink.label}</span>
@@ -1468,28 +1483,28 @@ const PatientDashboard = () => {
         {/* Main Content */}
         <div className="flex-1 p-8">
           <div className="max-w-7xl mx-auto">
-        {/* Test Notification Button - Only in test mode */}
-        {isTestUser() && (
-          <div className="mb-4 flex justify-end">
-            <button
-              onClick={() => {
-                const mockNotification = {
-                  id: 'test-notification-' + Date.now(),
-                  type: 'doctor_connection_request',
-                  title: 'Test Doctor Request',
-                  message: 'Dr. Test Doctor wants to connect with you',
-                  timestamp: new Date(),
-                  read: false
-                };
-                setNotifications(prev => [mockNotification, ...prev]);
-                console.log('Test notification added:', mockNotification);
-              }}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-lg"
-            >
-              🧪 Test Notification
-            </button>
-          </div>
-        )}
+            {/* Test Notification Button - Only in test mode */}
+            {isTestUser() && (
+              <div className="mb-4 flex justify-end">
+                <button
+                  onClick={() => {
+                    const mockNotification = {
+                      id: 'test-notification-' + Date.now(),
+                      type: 'doctor_connection_request',
+                      title: 'Test Doctor Request',
+                      message: 'Dr. Test Doctor wants to connect with you',
+                      timestamp: new Date(),
+                      read: false
+                    };
+                    setNotifications(prev => [mockNotification, ...prev]);
+                    console.log('Test notification added:', mockNotification);
+                  }}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-lg"
+                >
+                  🧪 Test Notification
+                </button>
+              </div>
+            )}
             {renderMainContent()}
           </div>
         </div>

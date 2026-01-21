@@ -29,11 +29,13 @@ import Login from './pages/login';
 import Register from './pages/register';
 import Profile from './pages/profile';
 import HealthAnalytics from './pages/HealthAnalytics';
+import AIExerciseCoach from './components/exercise/AIExerciseCoach';
+import SmartReportAnalyzer from './components/SmartReportAnalyzer';
 
 function AppContent() {
   const location = useLocation();
   const hideHeaderFooterOn = ['/login', '/register', '/admindashboard'];
-  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/doctordashboard', '/familydashboard', '/settings', '/healthanalytics'];
+  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/doctordashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer'];
 
   return (
     <ErrorBoundary>
@@ -45,17 +47,19 @@ function AppContent() {
         <Route path="/about" element={<About />} />
         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="/healthanalytics" element={<PrivateRoute><HealthAnalytics /></PrivateRoute>} />
-        
+
         {/* Authentication Routes - Redirect if already logged in */}
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-        
+
         {/* Protected Routes - Authentication required */}
         <Route path="/patientdashboard" element={<PrivateRoute requiredRole="patient"><PatientDashboard /></PrivateRoute>} />
         <Route path="/doctordashboard" element={<PrivateRoute requiredRole="doctor"><DoctorDashboard /></PrivateRoute>} />
         <Route path="/admindashboard" element={<PrivateRoute requiredRole="admin"><AdminDashboard /></PrivateRoute>} />
         <Route path="/admindoctormanagement" element={<PrivateRoute requiredRole="admin"><AdminDoctorManagement /></PrivateRoute>} />
         <Route path="/familydashboard" element={<PrivateRoute requiredRole="family"><EnhancedFamilyDashboard /></PrivateRoute>} />
+        <Route path="/exercise-coach" element={<PrivateRoute requiredRole="patient"><div className="p-8 max-w-7xl mx-auto"><AIExerciseCoach /></div></PrivateRoute>} />
+        <Route path="/report-analyzer" element={<PrivateRoute requiredRole="patient"><SmartReportAnalyzer /></PrivateRoute>} />
         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
       </Routes>
       {!hideHeaderFooterOn.includes(location.pathname) && <Footer />}

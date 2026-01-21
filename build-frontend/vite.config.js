@@ -13,9 +13,9 @@ export default defineConfig({
     // },
     proxy: {
       '/api': {
-        target: process.env.NODE_ENV === 'production' 
+        target: process.env.NODE_ENV === 'production'
           ? 'https://swasthyalink-backend-v2.onrender.com'
-          : 'http://localhost:3001',
+          : 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       },

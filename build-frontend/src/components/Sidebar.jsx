@@ -25,6 +25,8 @@ const Sidebar = ({ open, onClose }) => {
         { to: "/patientdashboard", label: "Patient Dashboard" },
         { to: "/healthanalytics", label: "Health Analytics" },
         { to: "/familydashboard", label: "Family Access" },
+        { to: "/report-analyzer", label: "Smart Reports" },
+        { to: "/exercise-coach", label: "AI Coach" },
         { to: "/settings", label: "Settings" },
       ],
     };
@@ -48,9 +50,9 @@ const Sidebar = ({ open, onClose }) => {
       <ul className="flex-1 overflow-y-auto bg-gray-100 flex flex-col gap-0 p-0 text-black font-medium">
         {menuItems.map((item, index) => (
           <li key={index} className="m-0">
-            <Link 
-              to={item.to} 
-              className={`${location.pathname === item.to ? 'bg-blue-600 text-white' : 'text-black'} block w-full px-4 py-3 transition-colors` } 
+            <Link
+              to={item.to}
+              className={`${location.pathname === item.to ? 'bg-blue-600 text-white' : 'text-black'} block w-full px-4 py-3 transition-colors`}
               onClick={onClose}
             >
               {item.label}

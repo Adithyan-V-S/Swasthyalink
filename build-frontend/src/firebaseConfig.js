@@ -4,15 +4,15 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// Firebase configuration for swasthyakink (correct project name)
+// Firebase configuration for swasthyalink-42535
 const firebaseConfig = {
-  apiKey: "AIzaSyCwoqFsGf3KNbKKeAht16HnGgdclsub0A0",
-  authDomain: "swasthyakink.firebaseapp.com",
-  projectId: "swasthyakink",
-  storageBucket: "swasthyakink.firebasestorage.app",
-  messagingSenderId: "613048256435",
-  appId: "1:613048256435:web:f7b9f390ff21154b9fedc6",
-  measurementId: "G-D0QZ3NL9J1"
+  apiKey: "AIzaSyA-eNslOYW1Byfrej_vbpRe-A0Re-KfHkc",
+  authDomain: "swasthyalink-42535.firebaseapp.com",
+  projectId: "swasthyalink-42535",
+  storageBucket: "swasthyalink-42535.firebasestorage.app",
+  messagingSenderId: "532861773654",
+  appId: "1:532861773654:web:2074bf4ba4bd1435f258f7",
+  measurementId: "G-JQFWV7X6LH"
 };
 // Initialize Firebase
 let app;
@@ -28,7 +28,7 @@ try {
   db = getFirestore(app);
   storage = getStorage(app);
 
-// Configure Google Auth Provider with environment-specific settings
+  // Configure Google Auth Provider with environment-specific settings
   const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 

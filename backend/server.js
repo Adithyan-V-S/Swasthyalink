@@ -26,10 +26,10 @@ try {
     console.log('✅ Firebase Admin initialized (env-based)');
   } else {
     // Fallback to local credentials in development
-    const serviceAccount = require('./credentialss.json');
+    const serviceAccount = require('./credentials.json');
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      projectId: serviceAccount.project_id || 'swasthyakink'
+      projectId: serviceAccount.project_id || 'swasthyalink-42535'
     });
     console.log('✅ Firebase Admin initialized (local credentials)');
   }
@@ -42,10 +42,10 @@ try {
 // Middleware - Updated CORS for Firebase Hosting
 app.use(cors({
   origin: [
-    'http://localhost:3000', 
-    'http://localhost:5173', 
-    'http://localhost:5174', 
-    'http://127.0.0.1:5173', 
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
     'https://swasthyalink-frontend.onrender.com',
     'https://swasthyalink-frontend-v2.onrender.com',
@@ -54,7 +54,8 @@ app.use(cors({
   ],
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Security headers
 app.use((req, res, next) => {
@@ -73,7 +74,7 @@ let sessionClient;
 try {
   // Use environment variables for credentials in production
   const hasDialogflowCreds = !!(process.env.GOOGLE_CLOUD_PROJECT_ID);
-  
+
   if (hasDialogflowCreds) {
     sessionClient = new SessionsClient({
       projectId: projectId,
@@ -134,7 +135,7 @@ async function detectIntent(message, sessionId) {
 // Simulate Dialogflow responses for demonstration
 function simulateDialogflowResponse(message) {
   const lowerMessage = message.toLowerCase();
-  
+
   // Simple keyword matching to simulate Dialogflow responses
   if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
     return {
@@ -144,7 +145,7 @@ function simulateDialogflowResponse(message) {
       sessionId: 'simulated-session-id'
     };
   }
-  
+
   if (lowerMessage.includes('help')) {
     return {
       success: true,
@@ -153,7 +154,7 @@ function simulateDialogflowResponse(message) {
       sessionId: 'simulated-session-id'
     };
   }
-  
+
   if (lowerMessage.includes('doctor')) {
     return {
       success: true,
@@ -162,7 +163,7 @@ function simulateDialogflowResponse(message) {
       sessionId: 'simulated-session-id'
     };
   }
-  
+
   if (lowerMessage.includes('appointment')) {
     return {
       success: true,
@@ -171,7 +172,7 @@ function simulateDialogflowResponse(message) {
       sessionId: 'simulated-session-id'
     };
   }
-  
+
   if (lowerMessage.includes('medicine') || lowerMessage.includes('prescription')) {
     return {
       success: true,
@@ -180,7 +181,7 @@ function simulateDialogflowResponse(message) {
       sessionId: 'simulated-session-id'
     };
   }
-  
+
   if (lowerMessage.includes('emergency')) {
     return {
       success: true,
@@ -189,7 +190,7 @@ function simulateDialogflowResponse(message) {
       sessionId: 'simulated-session-id'
     };
   }
-  
+
   if (lowerMessage.includes('bye') || lowerMessage.includes('goodbye')) {
     return {
       success: true,
@@ -198,7 +199,7 @@ function simulateDialogflowResponse(message) {
       sessionId: 'simulated-session-id'
     };
   }
-  
+
   // Default response for health-related queries
   const healthTips = [
     "Remember to stay hydrated throughout the day!",
@@ -209,7 +210,7 @@ function simulateDialogflowResponse(message) {
     "Managing stress is important for both mental and physical health.",
     "Washing your hands frequently helps prevent the spread of germs."
   ];
-  
+
   return {
     success: true,
     response: healthTips[Math.floor(Math.random() * healthTips.length)],
@@ -222,26 +223,69 @@ function simulateDialogflowResponse(message) {
 app.post('/api/chatbot', async (req, res) => {
   try {
     const { message, sessionId } = req.body;
-    
+
     if (!message) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Message is required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Message is required'
       });
     }
-    
+
     const response = await detectIntent(message, sessionId || 'default-session');
     res.json(response);
   } catch (error) {
     console.error('Chatbot endpoint error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error' 
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
     });
   }
 });
 
-// New Gemini API proxy endpoint with intelligent fallback
+// Gemini Vision API - Lab Report Analyzer
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const fs = require("fs");
+
+// Initialize Gemini API
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+app.post('/api/analyze-report', async (req, res) => {
+  try {
+    const { image, mimeType } = req.body; // Expect base64 image string
+
+    if (!image) {
+      return res.status(400).json({ success: false, error: 'Image data is required' });
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+    const prompt = "Analyze this medical lab report. Extract the test names, results, units, and reference ranges. Identify if any result is 'High', 'Low', or 'Normal' based on the reference range. detailed analysis of the report and what it means for the patient. Provide the output in strictly valid JSON format with this structure: { \"summary\": \"Brief medical summary of the report\", \"results\": [ { \"testName\": \"Hemoglobin\", \"value\": \"14.5\", \"unit\": \"g/dL\", \"status\": \"Normal\", \"referenceRange\": \"13.5-17.5\" } ] }";
+
+    const imageParts = [
+      {
+        inlineData: {
+          data: image,
+          mimeType: mimeType || "image/jpeg",
+        },
+      },
+    ];
+
+    const result = await model.generateContent([prompt, ...imageParts]);
+    const response = await result.response;
+    const text = response.text();
+
+    // Clean up markdown code blocks if present
+    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const jsonResponse = JSON.parse(cleanText);
+
+    res.json({ success: true, data: jsonResponse });
+
+  } catch (error) {
+    console.error('❌ Error analyzing report:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const https = require('https');
 
 app.post('/api/gemini', async (req, res) => {
@@ -256,53 +300,53 @@ app.post('/api/gemini', async (req, res) => {
     // Intelligent health assistant responses based on common medical queries
     const getIntelligentResponse = (userMessage) => {
       const lowerMessage = userMessage.toLowerCase();
-      
+
       // Common health questions and responses
       if (lowerMessage.includes('headache') || lowerMessage.includes('head pain')) {
         return "Headaches can have various causes. Common triggers include stress, dehydration, lack of sleep, or tension. Try drinking water, resting in a dark room, or gentle neck stretches. If headaches are severe, frequent, or accompanied by other symptoms, please consult a healthcare provider.";
       }
-      
+
       if (lowerMessage.includes('fever') || lowerMessage.includes('temperature')) {
         return "Fever is your body's natural response to infection. For adults, a temperature above 100.4°F (38°C) is considered a fever. Rest, stay hydrated, and consider over-the-counter fever reducers. If fever persists for more than 3 days or is very high, seek medical attention.";
       }
-      
+
       if (lowerMessage.includes('cough') || lowerMessage.includes('coughing')) {
         return "Coughs can be caused by colds, allergies, or respiratory infections. Stay hydrated, use a humidifier, and try honey or throat lozenges. If you have a persistent cough lasting more than 2 weeks, or if you're coughing up blood, please see a doctor.";
       }
-      
+
       if (lowerMessage.includes('stomach') || lowerMessage.includes('stomachache') || lowerMessage.includes('nausea')) {
         return "Stomach issues can be caused by food, stress, or digestive problems. Try eating bland foods, staying hydrated, and avoiding spicy or fatty foods. If symptoms are severe, persistent, or include vomiting or diarrhea, consult a healthcare provider.";
       }
-      
+
       if (lowerMessage.includes('sleep') || lowerMessage.includes('insomnia') || lowerMessage.includes('tired')) {
         return "Good sleep is essential for health. Try maintaining a regular sleep schedule, avoiding screens before bed, and creating a comfortable sleep environment. If sleep problems persist, consider discussing with a healthcare provider.";
       }
-      
+
       if (lowerMessage.includes('anxiety') || lowerMessage.includes('stress') || lowerMessage.includes('worried')) {
         return "Managing stress and anxiety is important for your wellbeing. Try deep breathing exercises, meditation, regular exercise, and talking to someone you trust. If anxiety is severe or interfering with daily life, consider professional help.";
       }
-      
+
       if (lowerMessage.includes('exercise') || lowerMessage.includes('workout') || lowerMessage.includes('fitness')) {
         return "Regular exercise is great for your health! Aim for at least 150 minutes of moderate activity per week. Start slowly if you're new to exercise, and always consult a doctor before beginning a new fitness program, especially if you have health concerns.";
       }
-      
+
       if (lowerMessage.includes('diet') || lowerMessage.includes('nutrition') || lowerMessage.includes('eating')) {
         return "A balanced diet is key to good health. Focus on fruits, vegetables, whole grains, lean proteins, and healthy fats. Stay hydrated and limit processed foods. For personalized nutrition advice, consider consulting a registered dietitian.";
       }
-      
+
       if (lowerMessage.includes('medication') || lowerMessage.includes('medicine') || lowerMessage.includes('drug')) {
         return "Always take medications as prescribed by your healthcare provider. Never share medications with others, and be aware of potential side effects. If you have questions about your medications, consult your pharmacist or doctor.";
       }
-      
+
       if (lowerMessage.includes('emergency') || lowerMessage.includes('urgent') || lowerMessage.includes('help')) {
         return "If you're experiencing a medical emergency, please call emergency services immediately (911 in the US). For urgent but non-emergency concerns, contact your healthcare provider or visit an urgent care center.";
       }
-      
+
       // General health advice
       if (lowerMessage.includes('health') || lowerMessage.includes('wellness') || lowerMessage.includes('healthy')) {
         return "Maintaining good health involves regular exercise, balanced nutrition, adequate sleep, stress management, and regular check-ups with healthcare providers. Remember, I'm here to provide general information, but always consult healthcare professionals for medical advice.";
       }
-      
+
       // Default helpful response
       return "I'm your AI health assistant! I can help with general health information, wellness tips, and guidance on common health topics. However, I'm not a replacement for professional medical advice. For specific medical concerns, always consult with a qualified healthcare provider. How can I help you today?";
     };
@@ -311,10 +355,10 @@ app.post('/api/gemini', async (req, res) => {
     // This provides helpful health information while we resolve the API authentication
     console.log('🔧 Using intelligent health assistant responses');
     const response = getIntelligentResponse(message);
-    
+
     console.log('✅ Health assistant response generated successfully');
     res.json({ success: true, response: response });
-    
+
   } catch (error) {
     // Improved diagnostics for easier debugging
     const errMsg = error?.message || 'Unknown error';
@@ -350,13 +394,13 @@ app.post('/api/test-connection-request', (req, res) => {
 app.post('/api/create-test-connections', async (req, res) => {
   try {
     const { uid, email } = req.body;
-    
+
     if (!uid) {
       return res.status(400).json({ success: false, error: 'UID is required' });
     }
-    
+
     console.log('🔍 Creating test connections for user:', uid);
-    
+
     // Always return success for test connections
     return res.json({
       success: true,
@@ -367,11 +411,11 @@ app.post('/api/create-test-connections', async (req, res) => {
         notification: 'test-notification-' + Date.now()
       }
     });
-    
+
     if (!db) {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
-    
+
     // 1. Create a pending connection request
     const requestRef = db.collection('patient_doctor_requests').doc();
     const requestData = {
@@ -396,10 +440,10 @@ app.post('/api/create-test-connections', async (req, res) => {
       createdAt: new Date(),
       updatedAt: new Date()
     };
-    
+
     await requestRef.set(requestData);
     console.log('✅ Created pending request:', requestRef.id);
-    
+
     // 2. Create a connected doctor relationship
     const relationshipRef = db.collection('patient_doctor_relationships').doc();
     const relationshipData = {
@@ -426,10 +470,10 @@ app.post('/api/create-test-connections', async (req, res) => {
       createdAt: new Date(),
       updatedAt: new Date()
     };
-    
+
     await relationshipRef.set(relationshipData);
     console.log('✅ Created connected doctor relationship:', relationshipRef.id);
-    
+
     // 3. Create a notification for the patient
     const notificationRef = db.collection('notifications').doc();
     const notificationData = {
@@ -448,10 +492,10 @@ app.post('/api/create-test-connections', async (req, res) => {
       createdAt: new Date(),
       updatedAt: new Date()
     };
-    
+
     await notificationRef.set(notificationData);
     console.log('✅ Created notification:', notificationRef.id);
-    
+
     res.json({
       success: true,
       message: 'Test connections created successfully',
@@ -461,7 +505,7 @@ app.post('/api/create-test-connections', async (req, res) => {
         notification: notificationRef.id
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error creating test connections:', error);
     res.status(500).json({
@@ -475,33 +519,33 @@ app.post('/api/create-test-connections', async (req, res) => {
 app.post('/api/cleanup-duplicates', async (req, res) => {
   try {
     const { uid } = req.body;
-    
+
     if (!uid) {
       return res.status(400).json({ success: false, error: 'UID is required' });
     }
-    
+
     console.log('🧹 Cleaning up duplicates for user:', uid);
-    
+
     if (!db) {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
-    
+
     const networkRef = db.collection('familyNetworks').doc(uid);
     const networkSnap = await networkRef.get();
-    
+
     if (!networkSnap.exists) {
       return res.json({ success: true, message: 'No family network found', duplicatesRemoved: 0 });
     }
-    
+
     const data = networkSnap.data();
     const members = data.members || [];
-    
+
     console.log('👥 Found family members:', members.length);
-    
+
     // Check for duplicates by email
     const uniqueMembers = [];
     const seenEmails = new Set();
-    
+
     for (const member of members) {
       const email = member.email?.toLowerCase();
       if (!seenEmails.has(email)) {
@@ -512,22 +556,22 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
         console.log('❌ Removing duplicate:', member.name, member.email);
       }
     }
-    
+
     const duplicatesRemoved = members.length - uniqueMembers.length;
-    
+
     if (duplicatesRemoved > 0) {
       console.log(`🧹 Cleaning up duplicates: ${members.length} → ${uniqueMembers.length}`);
-      
+
       // Update the document with unique members
       await networkRef.update({
         members: uniqueMembers
       });
-      
+
       console.log('✅ Duplicates removed successfully');
     } else {
       console.log('✅ No duplicates found');
     }
-    
+
     res.json({
       success: true,
       message: `Cleanup completed. Removed ${duplicatesRemoved} duplicates.`,
@@ -535,7 +579,7 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
       totalMembers: members.length,
       uniqueMembers: uniqueMembers.length
     });
-    
+
   } catch (error) {
     console.error('❌ Error cleaning up duplicates:', error);
     res.status(500).json({
@@ -568,54 +612,54 @@ if (admin.apps.length > 0) {
 }
 
 const mockUsers = [
-  { 
-    email: 'john.doe@example.com', 
-    name: 'John Doe', 
+  {
+    email: 'john.doe@example.com',
+    name: 'John Doe',
     phone: '+91 98765 43210',
     address: '123 Main Street, New York, NY 10001',
     city: 'New York',
     state: 'NY',
     zipCode: '10001'
   },
-  { 
-    email: 'jane.smith@example.com', 
-    name: 'Jane Smith', 
+  {
+    email: 'jane.smith@example.com',
+    name: 'Jane Smith',
     phone: '+91 98765 43211',
     address: '456 Oak Avenue, Los Angeles, CA 90001',
     city: 'Los Angeles',
     state: 'CA',
     zipCode: '90001'
   },
-  { 
-    email: 'mike.johnson@example.com', 
-    name: 'Mike Johnson', 
+  {
+    email: 'mike.johnson@example.com',
+    name: 'Mike Johnson',
     phone: '+91 98765 43212',
     address: '789 Pine Road, Chicago, IL 60601',
     city: 'Chicago',
     state: 'IL',
     zipCode: '60601'
   },
-  { 
-    email: 'sarah.wilson@example.com', 
-    name: 'Sarah Wilson', 
+  {
+    email: 'sarah.wilson@example.com',
+    name: 'Sarah Wilson',
     phone: '+91 98765 43213',
     address: '321 Elm Street, Houston, TX 77001',
     city: 'Houston',
     state: 'TX',
     zipCode: '77001'
   },
-  { 
-    email: 'emma.brown@example.com', 
-    name: 'Emma Brown', 
+  {
+    email: 'emma.brown@example.com',
+    name: 'Emma Brown',
     phone: '+91 98765 43214',
     address: '654 Maple Drive, Phoenix, AZ 85001',
     city: 'Phoenix',
     state: 'AZ',
     zipCode: '85001'
   },
-  { 
-    email: 'david.davis@example.com', 
-    name: 'David Davis', 
+  {
+    email: 'david.davis@example.com',
+    name: 'David Davis',
     phone: '+91 98765 43215',
     address: '987 Cedar Lane, Philadelphia, PA 19101',
     city: 'Philadelphia',
@@ -627,14 +671,14 @@ const mockUsers = [
 // API to search users by email or name
 app.get('/api/users/search', (req, res) => {
   const { query } = req.query;
-  
+
   if (!query) {
     return res.status(400).json({ success: false, error: 'Query parameter is required' });
   }
 
   const searchTerm = query.toLowerCase();
-  const results = mockUsers.filter(user => 
-    user.email.toLowerCase().includes(searchTerm) || 
+  const results = mockUsers.filter(user =>
+    user.email.toLowerCase().includes(searchTerm) ||
     user.name.toLowerCase().includes(searchTerm)
   );
 
@@ -644,7 +688,7 @@ app.get('/api/users/search', (req, res) => {
 // Enhanced search API with address support
 app.get('/api/users/search/advanced', (req, res) => {
   const { query, searchType = 'all' } = req.query;
-  
+
   if (!query) {
     return res.status(400).json({ success: false, error: 'Query parameter is required' });
   }
@@ -654,17 +698,17 @@ app.get('/api/users/search/advanced', (req, res) => {
 
   switch (searchType) {
     case 'email':
-      results = mockUsers.filter(user => 
+      results = mockUsers.filter(user =>
         user.email.toLowerCase().includes(searchTerm)
       );
       break;
     case 'name':
-      results = mockUsers.filter(user => 
+      results = mockUsers.filter(user =>
         user.name.toLowerCase().includes(searchTerm)
       );
       break;
     case 'address':
-      results = mockUsers.filter(user => 
+      results = mockUsers.filter(user =>
         user.address.toLowerCase().includes(searchTerm) ||
         user.city.toLowerCase().includes(searchTerm) ||
         user.state.toLowerCase().includes(searchTerm) ||
@@ -673,8 +717,8 @@ app.get('/api/users/search/advanced', (req, res) => {
       break;
     case 'all':
     default:
-      results = mockUsers.filter(user => 
-        user.email.toLowerCase().includes(searchTerm) || 
+      results = mockUsers.filter(user =>
+        user.email.toLowerCase().includes(searchTerm) ||
         user.name.toLowerCase().includes(searchTerm) ||
         user.address.toLowerCase().includes(searchTerm) ||
         user.city.toLowerCase().includes(searchTerm) ||
@@ -712,8 +756,8 @@ app.post('/api/family/request', async (req, res) => {
     const fromNetworkRef = doc(db, 'familyNetworks', fromUid);
     const fromNetworkSnap = await getDoc(fromNetworkRef);
     const fromMembers = fromNetworkSnap.exists() ? fromNetworkSnap.data().members || [] : [];
-    const alreadyFamily = fromMembers.some(member => 
-      (member.email && member.email === toEmail) || 
+    const alreadyFamily = fromMembers.some(member =>
+      (member.email && member.email === toEmail) ||
       (member.uid && member.uid === toUid)
     );
 
@@ -783,8 +827,8 @@ app.post('/api/family/request/:id/accept', async (req, res) => {
     // Check if member already exists before adding
     const fromNetworkDoc = await getDoc(fromNetworkRef);
     const fromExistingMembers = fromNetworkDoc.exists() ? fromNetworkDoc.data().members || [] : [];
-    const fromMemberExists = fromExistingMembers.some(member => 
-      (member.email && member.email === fromMember.email) || 
+    const fromMemberExists = fromExistingMembers.some(member =>
+      (member.email && member.email === fromMember.email) ||
       (member.uid && member.uid === fromMember.uid)
     );
 
@@ -808,8 +852,8 @@ app.post('/api/family/request/:id/accept', async (req, res) => {
     // Check if member already exists before adding
     const toNetworkDoc = await getDoc(toNetworkRef);
     const toExistingMembers = toNetworkDoc.exists() ? toNetworkDoc.data().members || [] : [];
-    const toMemberExists = toExistingMembers.some(member => 
-      (member.email && member.email === toMember.email) || 
+    const toMemberExists = toExistingMembers.some(member =>
+      (member.email && member.email === toMember.email) ||
       (member.uid && member.uid === toMember.uid)
     );
 
@@ -861,33 +905,33 @@ app.post('/api/family/request/:id/reject', (req, res) => {
 app.post('/api/family/cleanup-duplicates', async (req, res) => {
   try {
     const { uid } = req.body;
-    
+
     if (!uid) {
       return res.status(400).json({ success: false, error: 'UID is required' });
     }
-    
+
     console.log('🧹 Cleaning up duplicates for user:', uid);
-    
+
     if (!db) {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
-    
+
     const networkRef = db.collection('familyNetworks').doc(uid);
     const networkSnap = await networkRef.get();
-    
+
     if (!networkSnap.exists) {
       return res.json({ success: true, message: 'No family network found', duplicatesRemoved: 0 });
     }
-    
+
     const data = networkSnap.data();
     const members = data.members || [];
-    
+
     console.log('👥 Found family members:', members.length);
-    
+
     // Check for duplicates by email
     const uniqueMembers = [];
     const seenEmails = new Set();
-    
+
     for (const member of members) {
       const email = member.email?.toLowerCase();
       if (!seenEmails.has(email)) {
@@ -898,22 +942,22 @@ app.post('/api/family/cleanup-duplicates', async (req, res) => {
         console.log('❌ Removing duplicate:', member.name, member.email);
       }
     }
-    
+
     const duplicatesRemoved = members.length - uniqueMembers.length;
-    
+
     if (duplicatesRemoved > 0) {
       console.log(`🧹 Cleaning up duplicates: ${members.length} → ${uniqueMembers.length}`);
-      
+
       // Update the document with unique members
       await networkRef.update({
         members: uniqueMembers
       });
-      
+
       console.log('✅ Duplicates removed successfully');
     } else {
       console.log('✅ No duplicates found');
     }
-    
+
     res.json({
       success: true,
       message: 'Duplicate family members cleaned up successfully',
@@ -930,46 +974,46 @@ app.post('/api/family/cleanup-duplicates', async (req, res) => {
 app.post('/api/family/migrate-connections', async (req, res) => {
   try {
     console.log('🔄 Starting family connections migration...');
-    
+
     // Get all family network documents
     const familyNetworksSnapshot = await db.collection('familyNetworks').get();
-    
+
     if (familyNetworksSnapshot.empty) {
       return res.json({ success: true, message: 'No family networks found', updatesCount: 0 });
     }
-    
+
     console.log(`📊 Found ${familyNetworksSnapshot.size} family network documents`);
-    
+
     const batch = db.batch();
     let updatesCount = 0;
-    
+
     // Process each family network
     for (const docSnapshot of familyNetworksSnapshot.docs) {
       const userUid = docSnapshot.id;
       const networkData = docSnapshot.data();
       const members = networkData.members || [];
-      
+
       console.log(`👤 Processing user ${userUid} with ${members.length} members`);
-      
+
       // For each member in this user's network
       for (const member of members) {
         if (!member.uid) {
           console.warn(`⚠️ Member without UID found for user ${userUid}:`, member);
           continue;
         }
-        
+
         // Check if the reverse connection exists
         const reverseNetworkRef = db.collection('familyNetworks').doc(member.uid);
         const reverseNetworkDoc = await reverseNetworkRef.get();
-        
+
         if (!reverseNetworkDoc.exists) {
           // Create the reverse network document
           console.log(`➕ Creating reverse network for ${member.uid}`);
-          
+
           // Get user data for the reverse member
           const userDoc = await db.collection('users').doc(userUid).get();
           const userData = userDoc.exists ? userDoc.data() : {};
-          
+
           const reverseMember = {
             uid: userUid,
             email: userData.email || networkData.userEmail || 'unknown@example.com',
@@ -980,29 +1024,29 @@ app.post('/api/family/migrate-connections', async (req, res) => {
             addedAt: member.addedAt || new Date().toISOString(),
             status: 'accepted'
           };
-          
+
           batch.set(reverseNetworkRef, {
             userUid: member.uid,
             members: [reverseMember],
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
-          
+
           updatesCount++;
         } else {
           // Check if the reverse member exists in the reverse network
           const reverseNetworkData = reverseNetworkDoc.data();
           const reverseMembers = reverseNetworkData.members || [];
-          
+
           const reverseMemberExists = reverseMembers.some(m => m.uid === userUid);
-          
+
           if (!reverseMemberExists) {
             console.log(`🔄 Adding missing reverse member for ${member.uid}`);
-            
+
             // Get user data for the reverse member
             const userDoc = await db.collection('users').doc(userUid).get();
             const userData = userDoc.exists ? userDoc.data() : {};
-            
+
             const reverseMember = {
               uid: userUid,
               email: userData.email || networkData.userEmail || 'unknown@example.com',
@@ -1013,18 +1057,18 @@ app.post('/api/family/migrate-connections', async (req, res) => {
               addedAt: member.addedAt || new Date().toISOString(),
               status: 'accepted'
             };
-            
+
             batch.update(reverseNetworkRef, {
               members: arrayUnion(reverseMember),
               updatedAt: serverTimestamp()
             });
-            
+
             updatesCount++;
           }
         }
       }
     }
-    
+
     // Commit all updates
     if (updatesCount > 0) {
       console.log(`💾 Committing ${updatesCount} updates...`);
@@ -1033,13 +1077,13 @@ app.post('/api/family/migrate-connections', async (req, res) => {
     } else {
       console.log('✨ No updates needed - all connections are already bidirectional');
     }
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: `Migration completed. ${updatesCount} connections updated.`,
-      updatesCount 
+      updatesCount
     });
-    
+
   } catch (error) {
     console.error('❌ Migration failed:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -1062,7 +1106,7 @@ function getInverseRelationship(relationship) {
     'Caregiver': 'Patient',
     'Patient': 'Caregiver'
   };
-  
+
   return inverseMap[relationship] || relationship;
 }
 
@@ -1160,14 +1204,14 @@ app.get('/api/family/requests', (req, res) => {
   }
 
   const sentRequests = familyRequests.filter(req => req.fromEmail === email);
-  const receivedRequests = familyRequests.filter(req => 
+  const receivedRequests = familyRequests.filter(req =>
     (req.toEmail === email || req.toName === email) && req.status === 'pending'
   );
 
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     sent: sentRequests,
-    received: receivedRequests 
+    received: receivedRequests
   });
 });
 

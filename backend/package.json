@@ -19,6 +19,7 @@
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",
     "@google-cloud/dialogflow": "^7.2.0",
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^2.4.3",
     "compromise": "^14.10.0",
     "cors": "^2.8.5",
