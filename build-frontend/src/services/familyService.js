@@ -1,103 +1,122 @@
 import { db, auth } from '../firebaseConfig';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  getDoc, 
-  doc, 
-  query, 
-  where, 
-  updateDoc, 
+import {
+  collection,
+  addDoc,
+  getDocs,
+  getDoc,
+  doc,
+  query,
+  where,
+  updateDoc,
   deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { 
+import {
   createFamilyRequestNotification,
   createFamilyRequestAcceptedNotification,
-  createFamilyRequestRejectedNotification 
+  createFamilyRequestRejectedNotification
 } from './notificationService';
 import { getFamilyNetwork as getFirebaseFamilyNetwork } from './firebaseFamilyService';
 
-// Send a family request (QUOTA PROTECTION - DISABLED)
-export const sendFamilyRequest = async ({ fromEmail, toEmail, toName, relationship }) => {
-  // EMERGENCY: Disable Firebase operations to prevent quota usage
-  console.warn('🚨 QUOTA EXCEEDED - Family request creation disabled to prevent Firebase writes');
-  console.log('📝 Would have sent family request:', { fromEmail, toEmail, toName, relationship });
-  
-  // Return mock success
-  return {
-    success: true,
-    message: 'Family request sent successfully (mock mode)',
-    disabled: true
-  };
-};
-
-// Accept a family request (QUOTA PROTECTION - DISABLED)
-export const acceptFamilyRequest = async (requestId) => {
-  // EMERGENCY: Disable Firebase operations to prevent quota usage
-  console.warn('🚨 QUOTA EXCEEDED - Family request acceptance disabled to prevent Firebase writes');
-  console.log('📝 Would have accepted family request:', requestId);
-  
-  // Return mock success
-  return {
-    success: true,
-    message: 'Family request accepted successfully (mock mode)',
-    disabled: true
-  };
-};
-
-// Reject a family request (QUOTA PROTECTION - DISABLED)
-export const rejectFamilyRequest = async (requestId) => {
-  // EMERGENCY: Disable Firebase operations to prevent quota usage
-  console.warn('🚨 QUOTA EXCEEDED - Family request rejection disabled to prevent Firebase writes');
-  console.log('📝 Would have rejected family request:', requestId);
-  
-  // Return mock success
-  return {
-    success: true,
-    message: 'Family request rejected successfully (mock mode)',
-    disabled: true
-  };
-};
-
-import { getFamilyRequests as getFirebaseFamilyRequests } from './firebaseFamilyService';
-
-// Get family requests (delegates to Firestore service, adapts shape)
-export const getFamilyRequests = async (userIdentifier) => {
+// Send a family request
+export const sendFamilyRequest = async (requestData) => {
   try {
-    // userIdentifier can be UID (preferred). Enhanced UI will now pass UID.
-    const requests = await getFirebaseFamilyRequests(userIdentifier);
-    return {
-      success: true,
-      requests
-    };
+    const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/sendFamilyRequest', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestData)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to send family request');
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
-    console.error('Error fetching family requests from Firestore:', error);
+    console.error('Error sending family request:', error);
     return { success: false, error: error.message };
   }
 };
 
-// Get family network (delegates to real Firestore service, adapts shape)
-export const getFamilyNetwork = async (userUid) => {
+// Accept a family request
+export const acceptFamilyRequest = async (requestId) => {
   try {
-    console.log('🔍 familyService.getFamilyNetwork called with userUid:', userUid);
-    const members = await getFirebaseFamilyNetwork(userUid); // returns array of members
-    console.log('🔍 getFirebaseFamilyNetwork returned:', members);
+    const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/acceptFamilyRequest', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id: requestId })
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to accept family request');
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error accepting family request:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Reject a family request
+export const rejectFamilyRequest = async (requestId) => {
+  try {
+    const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/rejectFamilyRequest', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id: requestId })
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to reject family request');
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error rejecting family request:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Get family requests 
+export const getFamilyRequests = async (userEmail) => {
+  try {
+    const response = await fetch(`https://us-central1-swasthyalink-42535.cloudfunctions.net/getFamilyRequests?email=${encodeURIComponent(userEmail)}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch family requests');
+    }
+    const data = await response.json();
     return {
       success: true,
-      network: {
-        userUid,
-        members: members || []
+      requests: {
+        sent: data.sent,
+        received: data.received
       }
     };
   } catch (error) {
-    console.error('❌ Error fetching family network from Firestore:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    return { success: false, error: error.message || 'Unknown error' };
+    console.error('Error fetching family requests:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Get family network
+export const getFamilyNetwork = async (userUid) => {
+  try {
+    const response = await fetch(`https://us-central1-swasthyalink-42535.cloudfunctions.net/getFamilyNetwork?uid=${encodeURIComponent(userUid)}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch family network');
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching family network:', error);
+    return { success: false, error: error.message };
   }
 };
 
@@ -105,13 +124,13 @@ export const getFamilyNetwork = async (userUid) => {
 export const removeFamilyMember = async (userUid, memberUid) => {
   try {
     console.log('🔒 Disabling family member (soft delete):', { userUid, memberUid });
-    
+
     // Import the real function from firebaseFamilyService
     const { removeFamilyMember: firebaseRemoveMember } = await import('./firebaseFamilyService');
-    
+
     // Call the soft delete function
     await firebaseRemoveMember(userUid, memberUid);
-    
+
     return {
       success: true,
       message: 'Family member disabled successfully (data preserved)',
@@ -126,18 +145,16 @@ export const removeFamilyMember = async (userUid, memberUid) => {
   }
 };
 
-// Update member access level (QUOTA PROTECTION - DISABLED)
-export const updateMemberAccessLevel = async (userUid, memberUid, accessLevel) => {
-  // EMERGENCY: Disable Firebase operations to prevent quota usage
-  console.warn('🚨 QUOTA EXCEEDED - Access level update disabled to prevent Firebase writes');
-  console.log('📝 Would have updated access level:', { userUid, memberUid, accessLevel });
-  
-  // Return mock success
-  return {
-    success: true,
-    message: 'Access level updated successfully (mock mode)',
-    disabled: true
-  };
+// Update member access level
+export const updateMemberAccessLevel = async (userUid, memberEmail, accessLevel, isEmergencyContact) => {
+  try {
+    const { updateFamilyMemberAccess: firebaseUpdateAccess } = await import('./firebaseFamilyService');
+    const success = await firebaseUpdateAccess(userUid, memberEmail, accessLevel, isEmergencyContact);
+    return { success };
+  } catch (error) {
+    console.error('Error updating member access level:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 // Backward-compatibility alias for UI components expecting this name
@@ -146,7 +163,7 @@ export const updateFamilyMemberAccess = updateMemberAccessLevel;
 // New function to search users via backend API
 export const searchUsers = async (query) => {
   try {
-    const response = await fetch(`/api/users/search?query=${encodeURIComponent(query)}`);
+    const response = await fetch(`https://us-central1-swasthyalink-42535.cloudfunctions.net/searchUsers?query=${encodeURIComponent(query)}`);
     if (!response.ok) {
       throw new Error('Failed to fetch search results');
     }
@@ -161,12 +178,12 @@ export const searchUsers = async (query) => {
 // New function to update family request relationship
 export const updateFamilyRequestRelationship = async ({ requestId, newRelationship }) => {
   try {
-    const response = await fetch(`/api/family/request/${requestId}/update-relationship`, {
+    const response = await fetch(`https://us-central1-swasthyalink-42535.cloudfunctions.net/updateRelationship`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ newRelationship })
+      body: JSON.stringify({ requestId, newRelationship })
     });
     if (!response.ok) {
       throw new Error('Failed to update family request relationship');

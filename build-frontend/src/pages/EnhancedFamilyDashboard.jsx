@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import FamilyChat from "../components/FamilyChat";
 // Use real Firebase-backed services for notifications and chat
-import { 
-  subscribeToNotifications, 
-  NOTIFICATION_TYPES 
+import {
+  subscribeToNotifications,
+  NOTIFICATION_TYPES
 } from '../services/notificationService';
 import { subscribeToConversations } from '../services/chatService';
 
@@ -14,6 +14,7 @@ import EnhancedFamilyRequestManager from "../components/EnhancedFamilyRequestMan
 import EnhancedFamilyNetworkManager from "../components/EnhancedFamilyNetworkManager";
 import FamilyNotificationSystem from "../components/FamilyNotificationSystem";
 import FamilyStatusIndicator from "../components/FamilyStatusIndicator";
+import SmartReportAnalyzer from "../components/SmartReportAnalyzer";
 // import NotificationManager from "../components/NotificationManager";
 // import NotificationTest from "../components/NotificationTest";
 
@@ -100,12 +101,12 @@ const EnhancedFamilyDashboard = () => {
   useEffect(() => {
     const savedTab = localStorage.getItem('familyDashboardTab');
     const openFamilyChat = localStorage.getItem('openFamilyChat');
-    
+
     if (savedTab !== null) {
       setActiveTab(parseInt(savedTab));
       localStorage.removeItem('familyDashboardTab');
     }
-    
+
     // Check if we need to open family chat specifically
     if (openFamilyChat === 'true') {
       console.log('🔔 Opening family chat from notification');
@@ -118,15 +119,15 @@ const EnhancedFamilyDashboard = () => {
   useEffect(() => {
     const loadFamilyNetworkStats = async () => {
       if (!currentUser) return;
-      
+
       try {
         const { getFamilyNetwork } = await import('../services/familyService');
         const response = await getFamilyNetwork(currentUser.uid);
-        
+
         if (response.success && response.network) {
           const members = response.network.members || [];
           const emergencyContacts = members.filter(member => member.isEmergencyContact).length;
-          
+
           setNetworkStats({
             totalMembers: members.length,
             pendingRequests: 0, // This would come from a separate API call
@@ -152,14 +153,14 @@ const EnhancedFamilyDashboard = () => {
   useEffect(() => {
     // Filter records based on access level and emergency mode
     let accessibleRecords = [];
-    
+
     if (isEmergencyMode) {
       accessibleRecords = mockSharedRecords.filter(record => record.isEmergency);
     } else {
       // For demo purposes, show all records
       accessibleRecords = mockSharedRecords;
     }
-    
+
     setFilteredRecords(accessibleRecords);
   }, [isEmergencyMode]);
 
@@ -202,7 +203,7 @@ const EnhancedFamilyDashboard = () => {
     const expiryTime = new Date();
     expiryTime.setHours(expiryTime.getHours() + 24);
     setEmergencyAccessExpiry(expiryTime);
-    
+
     console.log("Emergency access activated for 24 hours");
     alert("Emergency access activated! You now have access to critical health information.");
   };
@@ -245,13 +246,13 @@ const EnhancedFamilyDashboard = () => {
   const handleNavigateToChat = (member) => {
     console.log("Navigating to chat with:", member);
     setActiveTab(3); // Switch to chat tab
-    
+
     // Store the member to start chat with
     try {
-      localStorage.setItem('startChatMember', JSON.stringify({ 
-        uid: member.uid, 
+      localStorage.setItem('startChatMember', JSON.stringify({
+        uid: member.uid,
         email: member.email,
-        name: member.name 
+        name: member.name
       }));
     } catch (e) {
       console.error('Failed to store chat target', e);
@@ -260,7 +261,7 @@ const EnhancedFamilyDashboard = () => {
 
   const handleNotificationClick = (notification) => {
     console.log("Notification clicked:", notification);
-    
+
     // Handle different notification types with proper redirection
     switch (notification.type) {
       case NOTIFICATION_TYPES.FAMILY_REQUEST:
@@ -303,7 +304,7 @@ const EnhancedFamilyDashboard = () => {
 
   const handleStatusClick = (action) => {
     console.log("Status action clicked:", action);
-    
+
     switch (action) {
       case 'members':
       case 'online':
@@ -347,7 +348,7 @@ const EnhancedFamilyDashboard = () => {
           <p className="text-gray-600 mb-2">Only patients can access the Family Dashboard.</p>
           <p className="text-sm text-gray-500">Current role: {userRole}</p>
           <div className="mt-6">
-            <button 
+            <button
               onClick={() => window.history.back()}
               className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
             >
@@ -511,22 +512,20 @@ const EnhancedFamilyDashboard = () => {
         <div className="space-y-6">
           {/* Family Status Indicator */}
           <FamilyStatusIndicator onStatusClick={handleStatusClick} />
-          
+
           {/* Emergency Control */}
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <h2 className="text-2xl font-bold text-red-700 mb-6 flex items-center">
               <span className="material-icons mr-2">emergency</span>
               Emergency Access
             </h2>
-            
+
             <div className="space-y-6">
               <div className="text-center">
-                <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${
-                  isEmergencyMode ? 'bg-red-100' : 'bg-gray-100'
-                }`}>
-                  <span className={`material-icons text-3xl ${
-                    isEmergencyMode ? 'text-red-600' : 'text-gray-400'
+                <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${isEmergencyMode ? 'bg-red-100' : 'bg-gray-100'
                   }`}>
+                  <span className={`material-icons text-3xl ${isEmergencyMode ? 'text-red-600' : 'text-gray-400'
+                    }`}>
                     {isEmergencyMode ? 'emergency' : 'shield'}
                   </span>
                 </div>
@@ -546,11 +545,10 @@ const EnhancedFamilyDashboard = () => {
 
               <button
                 onClick={isEmergencyMode ? deactivateEmergencyAccess : activateEmergencyAccess}
-                className={`w-full px-6 py-3 rounded-lg font-semibold transition-all ${
-                  isEmergencyMode 
-                    ? 'bg-gray-700 text-white hover:bg-gray-800' 
+                className={`w-full px-6 py-3 rounded-lg font-semibold transition-all ${isEmergencyMode
+                    ? 'bg-gray-700 text-white hover:bg-gray-800'
                     : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
-                }`}
+                  }`}
               >
                 {isEmergencyMode ? 'Deactivate Emergency' : 'Activate Emergency'}
               </button>
@@ -563,28 +561,28 @@ const EnhancedFamilyDashboard = () => {
       <div className="bg-white rounded-2xl shadow-lg p-8">
         <h2 className="text-2xl font-bold text-gray-800 mb-6">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button 
+          <button
             onClick={() => setShowAddMember(true)}
             className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1"
           >
             <span className="material-icons mb-2 block">person_add</span>
             <span className="text-sm font-medium">Add Member</span>
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab(1)}
             className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1"
           >
             <span className="material-icons mb-2 block">inbox</span>
             <span className="text-sm font-medium">View Requests</span>
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab(3)}
             className="bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1"
           >
             <span className="material-icons mb-2 block">chat</span>
             <span className="text-sm font-medium">Family Chat</span>
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab(4)}
             className="bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1"
           >
@@ -617,7 +615,7 @@ const EnhancedFamilyDashboard = () => {
             )}
           </div>
         </div>
-        
+
         {filteredRecords.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
@@ -625,7 +623,7 @@ const EnhancedFamilyDashboard = () => {
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">No Records Available</h3>
             <p className="text-gray-600">
-              {isEmergencyMode 
+              {isEmergencyMode
                 ? "No emergency records are currently available."
                 : "No health records are currently shared with your access level."
               }
@@ -652,7 +650,7 @@ const EnhancedFamilyDashboard = () => {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <h4 className="font-medium text-gray-800 mb-2">Prescription</h4>
@@ -677,16 +675,17 @@ const EnhancedFamilyDashboard = () => {
         return renderOverview();
       case 1: // Family Requests
         return (
-          <EnhancedFamilyRequestManager 
+          <EnhancedFamilyRequestManager
             onUpdate={handleNetworkUpdate}
             onNavigateToChat={handleNavigateToChat}
           />
         );
       case 2: // Family Network
         return (
-          <EnhancedFamilyNetworkManager 
+          <EnhancedFamilyNetworkManager
             onUpdate={handleNetworkUpdate}
             onNavigateToChat={handleNavigateToChat}
+            onAddMember={() => setShowAddMember(true)}
           />
         );
       case 3: // Chat
@@ -698,6 +697,8 @@ const EnhancedFamilyDashboard = () => {
         );
       case 4: // Health Records
         return renderHealthRecords();
+      case 5: // File Storage
+        return <SmartReportAnalyzer />;
       default:
         return renderOverview();
     }
@@ -734,6 +735,11 @@ const EnhancedFamilyDashboard = () => {
       icon: <span className="material-icons text-lg">medical_services</span>,
       description: "Shared records"
     },
+    {
+      label: "File Storage",
+      icon: <span className="material-icons text-lg">folder</span>,
+      description: "Health documents"
+    },
   ];
 
   return (
@@ -750,7 +756,7 @@ const EnhancedFamilyDashboard = () => {
 
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
           onClick={() => setSidebarOpen(false)}
         />
@@ -758,9 +764,8 @@ const EnhancedFamilyDashboard = () => {
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className={`${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0 fixed md:relative top-0 left-0 h-screen bg-white shadow-2xl z-40 w-80 transition-transform duration-300 overflow-y-auto`}>
+        <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          } md:translate-x-0 fixed md:relative top-0 left-0 h-screen bg-white shadow-2xl z-40 w-80 transition-transform duration-300 overflow-y-auto`}>
           <div className="p-6">
             {/* Profile Section */}
             <div className="text-center mb-8">
@@ -775,17 +780,16 @@ const EnhancedFamilyDashboard = () => {
               </h3>
               <p className="text-sm text-gray-600">Family Dashboard</p>
             </div>
-            
+
             {/* Navigation */}
             <nav className="space-y-2">
               {sidebarLinks.map((link, idx) => (
                 <button
                   key={idx}
-                  className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-medium transition-all relative ${
-                    activeTab === idx 
-                      ? 'bg-indigo-100 text-indigo-900 shadow-sm' 
+                  className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-medium transition-all relative ${activeTab === idx
+                      ? 'bg-indigo-100 text-indigo-900 shadow-sm'
                       : 'hover:bg-gray-50 text-gray-700 hover:text-gray-900'
-                  }`}
+                    }`}
                   onClick={() => {
                     setActiveTab(idx);
                     setSidebarOpen(false);
@@ -819,7 +823,7 @@ const EnhancedFamilyDashboard = () => {
             </div>
           </div>
         </aside>
-        
+
         {/* Main content */}
         <div className="flex-1 p-6 md:p-8">
           {renderMainContent()}

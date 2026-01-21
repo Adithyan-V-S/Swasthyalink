@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-  getFamilyRequests, 
-  acceptFamilyRequest, 
+import {
+  getFamilyRequests,
+  acceptFamilyRequest,
   rejectFamilyRequest,
   updateFamilyRequestRelationship
 } from '../services/familyService';
-import { 
+import {
   createFamilyRequestAcceptedNotification,
   createNotification,
-  NOTIFICATION_TYPES 
+  NOTIFICATION_TYPES
 } from '../services/notificationService';
 import Button from './common/Button';
 
@@ -24,7 +24,7 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
   const [recipientRelationship, setRecipientRelationship] = useState('');
 
   const relationships = [
-    'Spouse', 'Parent', 'Child', 'Sibling', 'Grandparent', 
+    'Spouse', 'Parent', 'Child', 'Sibling', 'Grandparent',
     'Grandchild', 'Uncle', 'Aunt', 'Cousin', 'Friend', 'Caregiver'
   ];
 
@@ -34,20 +34,20 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
 
   const loadRequests = async () => {
     if (!currentUser) return;
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
-      console.log("Loading family requests for user UID:", currentUser.uid);
-      const response = await getFamilyRequests(currentUser.uid);
-      
+      console.log("Loading family requests for user email:", currentUser.email);
+      const response = await getFamilyRequests(currentUser.email);
+
       if (response.success) {
         console.log("Family requests loaded:", response.requests);
-        
+
         const filteredSent = (response.requests.sent || []).filter(req => req.status === 'pending');
         const filteredReceived = (response.requests.received || []).filter(req => req.status === 'pending');
-        
+
         setSentRequests(filteredSent);
         setReceivedRequests(filteredReceived);
       } else {
@@ -68,22 +68,22 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
     }
 
     setProcessingId(requestId);
-    
+
     try {
       console.log("Accepting family request with relationship:", requestId, recipientRelationship);
-      
+
       // Update the request with recipient's relationship
-      await updateFamilyRequestRelationship(requestId, recipientRelationship);
-      
+      await updateFamilyRequestRelationship({ requestId, newRelationship: recipientRelationship });
+
       // Accept the request
       const response = await acceptFamilyRequest(requestId);
-      
+
       if (response.success) {
         console.log("Family request accepted successfully");
-        
+
         // Find the request to get sender info
         const acceptedRequest = receivedRequests.find(req => req.id === requestId);
-        
+
         // Send notification to the sender
         if (acceptedRequest) {
           await createFamilyRequestAcceptedNotification(
@@ -96,31 +96,31 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
             recipientRelationship
           );
         }
-        
+
         // Remove from received requests
         setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
-        
+
         // Update sent requests status
-        setSentRequests(prev => 
-          prev.map(req => 
-            req.id === requestId 
-              ? { ...req, status: 'accepted' } 
+        setSentRequests(prev =>
+          prev.map(req =>
+            req.id === requestId
+              ? { ...req, status: 'accepted' }
               : req
           )
         );
-        
+
         // Notify parent component
         if (onUpdate) onUpdate();
-        
+
         // Reset editing state
         setEditingRequest(null);
         setRecipientRelationship('');
-        
+
         // Force a reload of the family network
         setTimeout(() => {
           loadRequests();
         }, 1000);
-        
+
         // Show success message
         alert("Family request accepted successfully! You can now chat with your family member.");
       } else {
@@ -137,31 +137,31 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
 
   const handleReject = async (requestId) => {
     setProcessingId(requestId);
-    
+
     try {
       console.log("Rejecting family request:", requestId);
-      
+
       setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
-      
+
       const response = await rejectFamilyRequest(requestId);
-      
+
       if (response.success) {
         console.log("Family request rejected successfully");
-        
-        setSentRequests(prev => 
-          prev.map(req => 
-            req.id === requestId 
-              ? { ...req, status: 'rejected' } 
+
+        setSentRequests(prev =>
+          prev.map(req =>
+            req.id === requestId
+              ? { ...req, status: 'rejected' }
               : req
           )
         );
-        
+
         if (onUpdate) onUpdate();
-        
+
         setTimeout(() => {
           loadRequests();
         }, 1000);
-        
+
         alert("Family request rejected successfully!");
       } else {
         throw new Error(response.error || 'Failed to reject request');
@@ -177,11 +177,11 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
 
   const formatDate = (timestamp) => {
     if (!timestamp) return '';
-    
-    const date = typeof timestamp === 'string' 
-      ? new Date(timestamp) 
+
+    const date = typeof timestamp === 'string'
+      ? new Date(timestamp)
       : timestamp.toDate();
-      
+
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -227,8 +227,8 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
           <div className="flex-1">
             <h3 className="font-medium text-red-800 mb-2">Error Loading Requests</h3>
             <p className="text-sm text-red-700 mb-4">{error}</p>
-            <Button 
-              onClick={loadRequests} 
+            <Button
+              onClick={loadRequests}
               variant="danger"
               size="small"
             >
@@ -251,7 +251,7 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
           You don't have any pending family requests at the moment.
         </p>
         <div className="flex justify-center space-x-4">
-          <Button 
+          <Button
             onClick={loadRequests}
             variant="secondary"
             leftIcon={<span className="material-icons">refresh</span>}
@@ -294,7 +294,7 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
           </Button>
         </div>
       </div>
-      
+
       {/* Received Requests */}
       {receivedRequests.length > 0 && (
         <div className="bg-white rounded-xl shadow-lg border border-gray-200">
@@ -309,7 +309,7 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
               People who want to connect with you
             </p>
           </div>
-          
+
           <div className="divide-y divide-gray-200">
             {receivedRequests.map(request => (
               <div key={request.id} className="p-6">
@@ -356,11 +356,10 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
                         <button
                           key={rel}
                           onClick={() => setRecipientRelationship(rel)}
-                          className={`p-3 text-sm rounded-lg border transition-all ${
-                            recipientRelationship === rel
-                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                              : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                          }`}
+                          className={`p-3 text-sm rounded-lg border transition-all ${recipientRelationship === rel
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                            : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                            }`}
                         >
                           <div className="flex items-center justify-center">
                             <span className="mr-2">{getRelationshipIcon(rel)}</span>
@@ -436,7 +435,7 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
               Requests you've sent to others
             </p>
           </div>
-          
+
           <div className="divide-y divide-gray-200">
             {sentRequests.map(request => (
               <div key={request.id} className="p-6">
@@ -466,13 +465,12 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className={`px-3 py-1 text-xs rounded-full font-medium ${
-                      request.status === 'pending' 
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : request.status === 'accepted'
+                    <span className={`px-3 py-1 text-xs rounded-full font-medium ${request.status === 'pending'
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : request.status === 'accepted'
                         ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
-                    }`}>
+                      }`}>
                       {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
                     </span>
                     {request.status === 'accepted' && (

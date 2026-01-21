@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { 
+import {
   getFamilyNetwork,
   updateFamilyMemberAccess,
   removeFamilyMember
@@ -8,7 +8,7 @@ import {
 import Button from './common/Button';
 import FamilyTreeVisualization from './FamilyTreeVisualization';
 
-const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
+const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat, onAddMember }) => {
   const { currentUser } = useAuth();
   const [familyMembers, setFamilyMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +16,7 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
   const [editingMember, setEditingMember] = useState(null);
   const [processingId, setProcessingId] = useState(null);
   const [viewMode, setViewMode] = useState('grid'); // 'grid', 'tree', or 'visualization'
-  
+
   // Form state for editing
   const [editForm, setEditForm] = useState({
     relationship: '',
@@ -28,26 +28,26 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
   });
 
   const relationships = [
-    'Spouse', 'Parent', 'Child', 'Sibling', 'Grandparent', 
+    'Spouse', 'Parent', 'Child', 'Sibling', 'Grandparent',
     'Grandchild', 'Uncle', 'Aunt', 'Cousin', 'Friend', 'Caregiver'
   ];
 
   const accessLevels = [
-    { 
-      value: 'full', 
-      label: 'Full Access', 
+    {
+      value: 'full',
+      label: 'Full Access',
       description: 'Can view all health records and information',
       color: 'bg-green-100 text-green-800'
     },
-    { 
-      value: 'limited', 
-      label: 'Limited Access', 
+    {
+      value: 'limited',
+      label: 'Limited Access',
       description: 'Can view basic health records and emergency information',
       color: 'bg-yellow-100 text-yellow-800'
     },
-    { 
-      value: 'emergency', 
-      label: 'Emergency Only', 
+    {
+      value: 'emergency',
+      label: 'Emergency Only',
       description: 'Can only access critical information during emergencies',
       color: 'bg-red-100 text-red-800'
     }
@@ -55,33 +55,33 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
 
   useEffect(() => {
     loadFamilyNetwork();
-    
+
     // DISABLED: Auto-refresh every 30 seconds - causing quota exceeded
     // const intervalId = setInterval(() => {
     //   console.log("Auto-refreshing family network");
     //   loadFamilyNetwork();
     // }, 30000); // Refresh every 30 seconds
-    
+
     // return () => clearInterval(intervalId);
   }, [currentUser]);
 
   const loadFamilyNetwork = async () => {
     if (!currentUser) return;
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
       console.log("Loading family network for user:", currentUser.email, "UID:", currentUser.uid);
       const response = await getFamilyNetwork(currentUser.uid);
-      
+
       if (response.success) {
         console.log("Family network loaded:", response.network);
-        
+
         if (response.network && response.network.members && response.network.members.length > 0) {
           console.log(`Found ${response.network.members.length} family members`);
           setFamilyMembers(response.network.members);
-          
+
           // Update parent component with network stats
           const emergencyContacts = response.network.members.filter(member => member.isEmergencyContact).length;
           onUpdate && onUpdate({
@@ -93,7 +93,7 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
         } else {
           console.log("No family members found in network");
           setFamilyMembers([]);
-          
+
           // Update parent component with empty stats
           onUpdate && onUpdate({
             totalMembers: 0,
@@ -127,33 +127,33 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
 
   const handleSaveEdit = async () => {
     if (!editingMember) return;
-    
+
     setProcessingId(editingMember.email);
-    
+
     try {
       // Update local state immediately for better UX
-      setFamilyMembers(prev => 
-        prev.map(member => 
-          member.email === editingMember.email 
-            ? { 
-                ...member, 
-                ...editForm,
-                updatedAt: new Date().toISOString()
-              } 
+      setFamilyMembers(prev =>
+        prev.map(member =>
+          member.email === editingMember.email
+            ? {
+              ...member,
+              ...editForm,
+              updatedAt: new Date().toISOString()
+            }
             : member
         )
       );
-      
+
       // TODO: Implement backend update
       // await updateFamilyMemberAccess(editingMember.uid, editForm);
-      
+
       setEditingMember(null);
-      
+
       if (onUpdate) onUpdate();
-      
+
       // Show success message
       alert("Family member access updated successfully!");
-      
+
     } catch (error) {
       console.error('Error updating family member:', error);
       setError('Failed to update family member. Please try again.');
@@ -170,23 +170,23 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
     }
 
     setProcessingId(memberEmail);
-    
+
     try {
       // Call the soft delete function
       const result = await removeFamilyMember(currentUser.uid, memberEmail);
-      
+
       if (result.success) {
         // Update local state to remove from view
         setFamilyMembers(prev => prev.filter(member => member.email !== memberEmail));
-        
+
         if (onUpdate) onUpdate();
-        
+
         alert(`${memberName} has been disabled from your family network. Data preserved for security.`);
         console.log('✅ Family member disabled successfully (data preserved)');
       } else {
         throw new Error(result.error || 'Failed to disable family member');
       }
-      
+
     } catch (error) {
       console.error('Error disabling family member:', error);
       setError('Failed to disable family member. Please try again.');
@@ -252,7 +252,7 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
                   {members.length}
                 </span>
               </div>
-              
+
               <div className="space-y-3">
                 {members.map(member => (
                   <div key={member.email} className="bg-white rounded-lg p-3 shadow-sm">
@@ -329,7 +329,7 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
                     <span className="font-medium text-gray-900">{member.relationship}</span>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Access Level</span>
                   <span className={`px-2 py-1 text-xs rounded-full font-medium ${getAccessLevelInfo(member.accessLevel).color}`}>
@@ -410,8 +410,8 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
           <div className="flex-1">
             <h3 className="font-medium text-red-800 mb-2">Error Loading Network</h3>
             <p className="text-sm text-red-700 mb-4">{error}</p>
-            <Button 
-              onClick={loadFamilyNetwork} 
+            <Button
+              onClick={loadFamilyNetwork}
               variant="danger"
               size="small"
             >
@@ -434,7 +434,13 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
           Add family members to share your health information and enable emergency access.
         </p>
         <div className="flex justify-center space-x-4">
-          <Button 
+          <Button
+            onClick={() => onAddMember && onAddMember()}
+            leftIcon={<span className="material-icons">person_add</span>}
+          >
+            Add Family Member
+          </Button>
+          <Button
             onClick={loadFamilyNetwork}
             disabled={loading}
             variant="secondary"
@@ -461,38 +467,43 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setViewMode('grid')}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'grid'
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === 'grid'
                   ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               <span className="material-icons text-sm mr-1">grid_view</span>
               Grid
             </button>
             <button
               onClick={() => setViewMode('tree')}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'tree'
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === 'tree'
                   ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               <span className="material-icons text-sm mr-1">account_tree</span>
               Tree
             </button>
             <button
               onClick={() => setViewMode('visualization')}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'visualization'
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === 'visualization'
                   ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               <span className="material-icons text-sm mr-1">hub</span>
               Visual
             </button>
           </div>
+          <Button
+            onClick={() => onAddMember && onAddMember()}
+            className="hidden md:flex"
+            size="small"
+            leftIcon={<span className="material-icons">person_add</span>}
+          >
+            Add Member
+          </Button>
           <Button
             onClick={loadFamilyNetwork}
             disabled={loading}
@@ -506,14 +517,14 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
       </div>
 
       {/* Network View */}
-      {viewMode === 'tree' ? renderFamilyTree() : 
-       viewMode === 'visualization' ? (
-         <FamilyTreeVisualization 
-           familyMembers={familyMembers}
-           onEditMember={handleEditMember}
-           onNavigateToChat={onNavigateToChat}
-         />
-       ) : renderGridView()}
+      {viewMode === 'tree' ? renderFamilyTree() :
+        viewMode === 'visualization' ? (
+          <FamilyTreeVisualization
+            familyMembers={familyMembers}
+            onEditMember={handleEditMember}
+            onNavigateToChat={onNavigateToChat}
+          />
+        ) : renderGridView()}
 
       {/* Edit Member Modal */}
       {editingMember && (
@@ -575,13 +586,12 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
                 </label>
                 <div className="space-y-3">
                   {accessLevels.map(level => (
-                    <div 
+                    <div
                       key={level.value}
-                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                        editForm.accessLevel === level.value 
-                          ? 'border-indigo-500 bg-indigo-50' 
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${editForm.accessLevel === level.value
+                          ? 'border-indigo-500 bg-indigo-50'
                           : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                        }`}
                       onClick={() => setEditForm(prev => ({ ...prev, accessLevel: level.value }))}
                     >
                       <div className="flex items-center">
@@ -613,7 +623,7 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
               {/* Additional Settings */}
               <div className="space-y-4">
                 <h4 className="font-medium text-gray-800">Additional Settings</h4>
-                
+
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div>
                     <span className="block text-sm font-medium text-gray-900">
@@ -657,7 +667,7 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
               >
                 Cancel
               </Button>
-              
+
               <Button
                 onClick={handleSaveEdit}
                 loading={processingId === editingMember.email}

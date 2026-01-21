@@ -90,3 +90,6 @@ exports.onFamilyChatCreate = functions.firestore
     }
     return null;
   });
+const analyzeReport = require('./analyzeReport');
+
+exports.analyzeReport = analyzeReport.analyzeReport;

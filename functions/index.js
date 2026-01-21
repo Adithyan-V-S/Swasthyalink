@@ -1,113 +1,72 @@
 /**
- * Firebase Cloud Functions for SwasthyaLink Healthcare Platform
- * Serverless API endpoints for the healthcare platform
+ * Import function triggers from their respective submodules:
+ *
+ * const {onCall} = require("firebase-functions/v2/https");
+ * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
+ *
+ * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-const {onRequest} = require("firebase-functions/v2/https");
-const {setGlobalOptions} = require("firebase-functions");
+const { setGlobalOptions } = require("firebase-functions");
+const { onRequest } = require("firebase-functions/v2/https");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
-const admin = require("firebase-admin");
-const express = require("express");
-const cors = require("cors");
 
-// Initialize Firebase Admin
+// For cost control, you can set the maximum number of containers that can be
+// running at the same time. This helps mitigate the impact of unexpected
+// traffic spikes by instead downgrading performance. This limit is a
+// per-function limit. You can override the limit for each function using the
+// `maxInstances` option in the function's options, e.g.
+// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
+// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
+// functions should each use functions.runWith({ maxInstances: 10 }) instead.
+// In the v1 API, each function can only serve one request per container, so
+// this will be the maximum concurrent request count.
+setGlobalOptions({ maxInstances: 10 });
+
+const { analyzeReport } = require('./analyzeReport');
+const { geminiChat } = require('./geminiChat');
+const { chatbot } = require('./chatbot');
+const { searchUsers, advancedSearch } = require('./userManagement');
+const { sendRequest, acceptRequest, rejectRequest, getNetwork, getRequests, updateRelationship } = require('./familyManagement');
+
+exports.analyzeReport = analyzeReport;
+exports.geminiChat = geminiChat;
+exports.chatbot = chatbot;
+exports.searchUsers = searchUsers;
+exports.advancedSearch = advancedSearch;
+exports.sendFamilyRequest = sendRequest;
+exports.acceptFamilyRequest = acceptRequest;
+exports.rejectFamilyRequest = rejectRequest;
+exports.getFamilyNetwork = getNetwork;
+exports.getFamilyRequests = getRequests;
+exports.updateRelationship = updateRelationship;
+
+const admin = require('firebase-admin');
+
 admin.initializeApp();
+const db = admin.firestore();
 
-// Set global options for cost control
-setGlobalOptions({maxInstances: 10});
+exports.onFamilyRequestCreate = onDocumentCreated('familyRequests/{requestId}', async (event) => {
+    const request = event.data.data();
+    if (!request) return null;
 
-// Create Express app
-const app = express();
+    const notification = {
+        recipientId: request.toEmail || request.toName,
+        type: 'family_request',
+        message: (request.fromEmail || 'Someone') + ' sent you a family request for relationship: ' + (request.relationship || ''),
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        relatedId: event.params.requestId,
+    };
 
-// CORS configuration
-app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:5173', 
-    'http://localhost:5174',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'https://swasthyakink.web.app',
-    'https://swasthyakink.firebaseapp.com'
-  ],
-  credentials: true
-}));
-
-app.use(express.json());
-
-// Security headers
-app.use((req, res, next) => {
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  next();
+    try {
+        await db.collection('notifications').add(notification);
+        console.log('Notification created for family request:', event.params.requestId);
+    } catch (error) {
+        console.error('Error creating notification for family request:', error);
+    }
+    return null;
 });
 
-// Optional light mode to speed up emulator initialization
-const lightMode = process.env.LIGHT_FUNCTIONS === '1';
-
-if (!lightMode) {
-  // Import route modules only when not in light mode
-  const notificationRoutes = require('./routes/notifications');
-  const presenceRoutes = require('./routes/presence');
-  const patientDoctorRoutes = require('./routes/patientDoctor');
-  const otpRoutes = require('./routes/otp');
-  const prescriptionRoutes = require('./routes/prescriptions');
-  const adminRoutes = require('./routes/admin');
-  const doctorRoutes = require('./routes/doctors');
-
-  // Mount routes
-  app.use('/api/notifications', notificationRoutes);
-  app.use('/api/presence', presenceRoutes);
-  app.use('/api/patient-doctor', patientDoctorRoutes);
-  app.use('/api/otp', otpRoutes);
-  app.use('/api/prescriptions', prescriptionRoutes);
-  app.use('/api/admin', adminRoutes);
-  app.use('/api/doctors', doctorRoutes);
-}
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    service: 'SwasthyaLink API',
-    version: '1.0.0'
-  });
-});
-
-// Error handling middleware
-app.use((error, req, res, next) => {
-  logger.error('Unhandled error:', error);
-  res.status(500).json({
-    success: false,
-    error: 'Internal server error',
-    message: error.message
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Endpoint not found',
-    path: req.originalUrl
-  });
-});
-
-// Export the Express app as a Firebase Function
-exports.api = onRequest({
-  memory: '1GiB',
-  timeoutSeconds: 300,
-  maxInstances: 10
-}, app);
-
-// Export individual functions for better performance (optional)
-exports.healthCheck = onRequest((req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    service: 'SwasthyaLink API',
-    version: '1.0.0'
-  });
-});
+// Add other triggers if needed...

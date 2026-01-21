@@ -3,7 +3,7 @@ class GeminiService {
   }
 
   async sendMessage(message, conversationId = null) {
-    const response = await fetch('/api/gemini', {
+    const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/geminiChat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

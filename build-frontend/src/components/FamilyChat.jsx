@@ -71,7 +71,7 @@ const FamilyChat = () => {
     // Fetch family network members (to allow starting new chats)
     (async () => {
       try {
-        const res = await getFamilyNetworkLegacy(currentUser.email);
+        const res = await getFamilyNetworkLegacy(currentUser.uid);
         const members = res?.network?.members || [];
         setFamilyMembers(members);
 
@@ -82,7 +82,7 @@ const FamilyChat = () => {
             console.log('📡 Presence updates:', presenceUpdates);
             setPresenceData(presenceUpdates);
           });
-          
+
           // Store unsubscribe function for cleanup
           if (unsubPresence) {
             conversationUnsubRef.current = () => {
@@ -103,7 +103,7 @@ const FamilyChat = () => {
               localStorage.removeItem('startChatMember');
             }
           }
-        } catch {}
+        } catch { }
 
         // Check if we need to open a specific conversation from notification
         try {
@@ -172,7 +172,7 @@ const FamilyChat = () => {
           localStorage.removeItem('openConversationId');
         }
       }
-    } catch {}
+    } catch { }
   }, [conversations]);
 
   // Filter conversations by search
@@ -192,33 +192,33 @@ const FamilyChat = () => {
     setSelectedConversation(conversation);
     // Mark as read for current user
     if (currentUser) {
-      markAsRead({ conversationId: conversation.id, userUid: currentUser.uid }).catch(() => {});
+      markAsRead({ conversationId: conversation.id, userUid: currentUser.uid }).catch(() => { });
     }
-  // Subscribe to messages in this conversation
-  if (conversationUnsubRef.current) {
-    conversationUnsubRef.current();
-    conversationUnsubRef.current = null;
-  }
+    // Subscribe to messages in this conversation
+    if (conversationUnsubRef.current) {
+      conversationUnsubRef.current();
+      conversationUnsubRef.current = null;
+    }
 
-  // Limit messages loaded to last 50 for performance
-  let unsub = null;
-  try {
-    unsub = subscribeToMessages(conversation.id, (items) => {
-      // Only log when message count changes significantly
-      if (items && Math.abs(items.length - messages.length) > 0) {
-        console.log('💬 FamilyChat: Loaded', items.length, 'messages for conversation');
-      }
-      if (items && items.length > 50) {
-        setMessages(items.slice(items.length - 50));
-      } else {
-        setMessages(items || []);
-      }
-    });
-  } catch (e) {
-    console.error('Failed to subscribe to messages:', e);
-    setMessages([]);
-  }
-  conversationUnsubRef.current = unsub;
+    // Limit messages loaded to last 50 for performance
+    let unsub = null;
+    try {
+      unsub = subscribeToMessages(conversation.id, (items) => {
+        // Only log when message count changes significantly
+        if (items && Math.abs(items.length - messages.length) > 0) {
+          console.log('💬 FamilyChat: Loaded', items.length, 'messages for conversation');
+        }
+        if (items && items.length > 50) {
+          setMessages(items.slice(items.length - 50));
+        } else {
+          setMessages(items || []);
+        }
+      });
+    } catch (e) {
+      console.error('Failed to subscribe to messages:', e);
+      setMessages([]);
+    }
+    conversationUnsubRef.current = unsub;
   };
 
   const startChatWithMember = async (member) => {
@@ -302,16 +302,16 @@ const FamilyChat = () => {
     const lastTime = toDate(c.lastMessageTime);
     const unreadCount = c.unread?.[currentUser?.uid] || 0;
     const otherUid = other?.uid || c.participants?.find(p => p !== currentUser?.uid);
-    
+
     // For testing: if no presence data, simulate online status
     let presence = presenceData[otherUid] || { status: 'offline' };
-    
+
     // Mock online status for testing (remove this in production)
     const isTestUser = localStorage.getItem('testUser') !== null;
     console.log('🔍 Presence debug:', { otherUid, isTestUser, presenceData: presenceData[otherUid], currentPresence: presence });
-    
+
     // Always force online for the other user to ensure green dot shows
-    presence = { 
+    presence = {
       status: 'online',
       lastSeen: new Date()
     };
@@ -320,9 +320,8 @@ const FamilyChat = () => {
       <div
         key={c.id}
         onClick={() => openConversation(c)}
-        className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-          selectedConversation?.id === c.id ? 'bg-indigo-50 border-indigo-200' : ''
-        }`}
+        className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${selectedConversation?.id === c.id ? 'bg-indigo-50 border-indigo-200' : ''
+          }`}
       >
         <div className="flex items-center space-x-3">
           <div className="relative">
@@ -478,9 +477,8 @@ const FamilyChat = () => {
                   return (
                     <div key={message.id} className={`group flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                       <div
-                        className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                          isMe ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-900'
-                        }`}
+                        className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${isMe ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-900'
+                          }`}
                       >
                         {content}
                         <div className={`flex items-center justify-end gap-2 mt-1 ${isMe ? 'text-indigo-200' : 'text-gray-500'}`}>
@@ -508,14 +506,14 @@ const FamilyChat = () => {
                         {/* Message actions popover */}
                         {!isDeleted && openMenuId === message.id && (
                           <div className={`absolute ${isMe ? 'right-0' : 'left-0'} -top-2 mt-1 z-10`}
-                               onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <div className="bg-white border border-gray-200 shadow-lg rounded-md overflow-hidden min-w-[160px]">
                               <button
                                 className="block px-3 py-2 text-sm hover:bg-gray-50 w-full text-left"
                                 onClick={() => {
                                   setOpenMenuId(null);
-                                  deleteMessageForMe({ conversationId: selectedConversation.id, messageId: message.id, userUid: currentUser.uid }).catch(() => {});
+                                  deleteMessageForMe({ conversationId: selectedConversation.id, messageId: message.id, userUid: currentUser.uid }).catch(() => { });
                                 }}
                               >
                                 Delete for me
@@ -526,7 +524,7 @@ const FamilyChat = () => {
                                   onClick={() => {
                                     setOpenMenuId(null);
                                     if (confirm('Delete this message for everyone?')) {
-                                      deleteMessageForEveryone({ conversationId: selectedConversation.id, messageId: message.id, requesterUid: currentUser.uid }).catch(() => {});
+                                      deleteMessageForEveryone({ conversationId: selectedConversation.id, messageId: message.id, requesterUid: currentUser.uid }).catch(() => { });
                                     }
                                   }}
                                 >

@@ -2,16 +2,14 @@ import { v4 as uuidv4 } from 'uuid';
 
 class DialogflowService {
   constructor() {
-    this.apiUrl = import.meta.env.VITE_API_BASE_URL
-      ? `${import.meta.env.VITE_API_BASE_URL}/api/chatbot`
-      : 'https://swasthyalink-backend-v2.onrender.com/api/chatbot';
+    this.apiUrl = 'https://us-central1-swasthyalink-42535.cloudfunctions.net/chatbot';
     this.useLocalFallback = true; // Set to true to use local fallback when backend is unavailable
   }
 
   // Local fallback responses for when the backend is unavailable
   getLocalResponse(message) {
     const lowerMessage = message.toLowerCase();
-    
+
     // Simple keyword matching to simulate Dialogflow responses
     if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
       return {
@@ -21,7 +19,7 @@ class DialogflowService {
         sessionId: 'local-session-id'
       };
     }
-    
+
     if (lowerMessage.includes('help')) {
       return {
         success: true,
@@ -30,7 +28,7 @@ class DialogflowService {
         sessionId: 'local-session-id'
       };
     }
-    
+
     if (lowerMessage.includes('doctor')) {
       return {
         success: true,
@@ -39,7 +37,7 @@ class DialogflowService {
         sessionId: 'local-session-id'
       };
     }
-    
+
     if (lowerMessage.includes('appointment')) {
       return {
         success: true,
@@ -48,7 +46,7 @@ class DialogflowService {
         sessionId: 'local-session-id'
       };
     }
-    
+
     if (lowerMessage.includes('medicine') || lowerMessage.includes('prescription')) {
       return {
         success: true,
@@ -57,7 +55,7 @@ class DialogflowService {
         sessionId: 'local-session-id'
       };
     }
-    
+
     if (lowerMessage.includes('emergency')) {
       return {
         success: true,
@@ -66,7 +64,7 @@ class DialogflowService {
         sessionId: 'local-session-id'
       };
     }
-    
+
     if (lowerMessage.includes('family')) {
       return {
         success: true,
@@ -75,7 +73,7 @@ class DialogflowService {
         sessionId: 'local-session-id'
       };
     }
-    
+
     if (lowerMessage.includes('bye') || lowerMessage.includes('goodbye')) {
       return {
         success: true,
@@ -84,7 +82,7 @@ class DialogflowService {
         sessionId: 'local-session-id'
       };
     }
-    
+
     // Default response for health-related queries
     const healthTips = [
       "Remember to stay hydrated throughout the day!",
@@ -95,7 +93,7 @@ class DialogflowService {
       "Managing stress is important for both mental and physical health.",
       "Washing your hands frequently helps prevent the spread of germs."
     ];
-    
+
     return {
       success: true,
       response: healthTips[Math.floor(Math.random() * healthTips.length)],
@@ -113,7 +111,7 @@ class DialogflowService {
       // Try to connect to the backend
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-      
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
@@ -122,7 +120,7 @@ class DialogflowService {
         body: JSON.stringify({ message, sessionId }),
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -133,13 +131,13 @@ class DialogflowService {
       return data;
     } catch (error) {
       console.error('DialogflowService detectIntent error:', error);
-      
+
       // Use local fallback if enabled
       if (this.useLocalFallback) {
         console.log('Using local fallback response system');
         return this.getLocalResponse(message);
       }
-      
+
       return {
         success: false,
         error: error.message || 'Failed to get response from Dialogflow'

@@ -35,14 +35,14 @@ const familyNetworksCollection = collection(db, 'familyNetworks');
 export const searchFirestoreUsers = async (searchTerm, currentUserUid) => {
   try {
     const results = [];
-    
+
     // Search by email (case insensitive)
     const emailQuery = query(
       usersCollection,
       where('email', '>=', searchTerm.toLowerCase()),
       where('email', '<=', searchTerm.toLowerCase() + '\uf8ff')
     );
-    
+
     const emailSnapshot = await getDocs(emailQuery);
     emailSnapshot.forEach(doc => {
       if (doc.id !== currentUserUid) {
@@ -52,7 +52,7 @@ export const searchFirestoreUsers = async (searchTerm, currentUserUid) => {
         });
       }
     });
-    
+
     // If no results by email, search by displayName
     if (results.length === 0) {
       const nameQuery = query(
@@ -60,7 +60,7 @@ export const searchFirestoreUsers = async (searchTerm, currentUserUid) => {
         where('displayName', '>=', searchTerm),
         where('displayName', '<=', searchTerm + '\uf8ff')
       );
-      
+
       const nameSnapshot = await getDocs(nameQuery);
       nameSnapshot.forEach(doc => {
         if (doc.id !== currentUserUid) {
@@ -71,7 +71,7 @@ export const searchFirestoreUsers = async (searchTerm, currentUserUid) => {
         }
       });
     }
-    
+
     return results;
   } catch (error) {
     console.error('Error searching Firestore users:', error);
@@ -118,20 +118,22 @@ export const sendFamilyRequest = async (fromUid, fromEmail, fromName, toUid, toE
     }
 
     // Create the request
-    const requestData = {
+    const newRequest = {
       fromUid,
       fromEmail,
       fromName,
-      toUid: toUid || null,
+      toUid,
       toEmail,
       toName,
       relationship,
+      accessLevel: accessLevel || 'limited',
+      isEmergencyContact: isEmergencyContact || false,
       status: 'pending',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
 
-    const requestRef = await addDoc(familyRequestsCollection, requestData);
+    const requestRef = await addDoc(familyRequestsCollection, newRequest);
 
     // Create notification for recipient using centralized service (separate from batch for atomicity)
     if (toUid) {
@@ -140,7 +142,7 @@ export const sendFamilyRequest = async (fromUid, fromEmail, fromName, toUid, toE
 
     return {
       id: requestRef.id,
-      ...requestData,
+      ...newRequest,
       createdAt: new Date().toISOString() // Convert server timestamp to string for frontend
     };
   } catch (error) {
@@ -202,8 +204,8 @@ export const acceptFamilyRequest = async (requestId, currentUserUid) => {
         email: requestData.toEmail,
         name: requestData.toName,
         relationship: requestData.relationship,
-        accessLevel: 'limited',
-        isEmergencyContact: false,
+        accessLevel: requestData.accessLevel || 'limited',
+        isEmergencyContact: requestData.isEmergencyContact || false,
         addedAt: new Date().toISOString()
       };
       batch.update(senderNetworkRef, {
@@ -355,62 +357,8 @@ export const getFamilyRequests = async (userUid) => {
   }
 };
 
-/**
- * Get family network for a user
- * @param {string} userUid - User's UID
- * @returns {Promise<Array>} - Family members
- */
 export const getFamilyNetwork = async (userUid) => {
   console.log('🔍 getFamilyNetwork called with userUid:', userUid);
-  
-  // Check if this is a test user (mock authentication)
-  const isTestUser = localStorage.getItem('testUser') !== null;
-  console.log('🔍 isTestUser:', isTestUser);
-
-  // For now, return mock data for all users to ensure it works
-  console.log('🧪 Returning mock family network for all users');
-  return [
-    {
-      id: 'family-member-1',
-      name: 'Dr. Sarah Johnson',
-      email: 'sarah.johnson@example.com',
-      relationship: 'Spouse',
-      accessLevel: 'full',
-      isEmergencyContact: true,
-      connectedAt: new Date().toISOString(),
-      lastAccess: new Date().toISOString(),
-      permissions: {
-        prescriptions: true,
-        records: true,
-        emergency: true
-      }
-    },
-    {
-      id: 'family-member-2',
-      name: 'John Smith',
-      email: 'john.smith@example.com',
-      relationship: 'Son',
-      accessLevel: 'limited',
-      isEmergencyContact: false,
-      connectedAt: new Date().toISOString(),
-      lastAccess: new Date().toISOString(),
-      permissions: {
-        prescriptions: false,
-        records: true,
-        emergency: false
-      }
-    }
-  ];
-
-  // Original Firebase logic (commented out for now)
-  /*
-  if (isTestUser) {
-    console.log('🧪 Using test user - returning mock family network');
-    return [
-      // ... mock data
-    ];
-  }
-  */
 
   try {
     // Read by UID doc to comply with rules match /familyNetworks/{userId}
@@ -423,11 +371,11 @@ export const getFamilyNetwork = async (userUid) => {
 
     const networkData = networkDoc.data();
     const members = networkData.members || [];
-    
+
     // Deduplicate members by email and UID to prevent duplicates
     // Filter out disabled members first
     const activeMembers = members.filter(member => !member.isDisabled);
-    
+
     const uniqueMembers = activeMembers.reduce((acc, member) => {
       const existingMember = acc.find(m =>
         (m.email && member.email && m.email === member.email) ||
@@ -486,14 +434,14 @@ export const removeFamilyMember = async (userUid, memberEmail) => {
     }
 
     // Update member to disabled status instead of removing
-    const updatedMembers = (networkData.members || []).map(member => 
-      member.email === memberEmail 
-        ? { 
-            ...member, 
-            isDisabled: true, 
-            disabledAt: new Date().toISOString(),
-            disabledBy: userUid
-          }
+    const updatedMembers = (networkData.members || []).map(member =>
+      member.email === memberEmail
+        ? {
+          ...member,
+          isDisabled: true,
+          disabledAt: new Date().toISOString(),
+          disabledBy: userUid
+        }
         : member
     );
 
@@ -524,11 +472,11 @@ export const removeFamilyMember = async (userUid, memberEmail) => {
         const updatedOtherMembers = (otherNetworkData.members || []).map(member =>
           member.uid === userUid
             ? {
-                ...member,
-                isDisabled: true,
-                disabledAt: new Date().toISOString(),
-                disabledBy: memberUid
-              }
+              ...member,
+              isDisabled: true,
+              disabledAt: new Date().toISOString(),
+              disabledBy: memberUid
+            }
             : member
         );
 
@@ -563,9 +511,9 @@ const addToFamilyNetwork = async (userUid, memberUid, memberEmail, memberName, r
       familyNetworksCollection,
       where('userUid', '==', userUid)
     );
-    
+
     const networkSnapshot = await getDocs(networkQuery);
-    
+
     const memberData = {
       uid: memberUid,
       email: memberEmail,
@@ -575,7 +523,7 @@ const addToFamilyNetwork = async (userUid, memberUid, memberEmail, memberName, r
       isEmergencyContact: false,
       addedAt: new Date().toISOString()
     };
-    
+
     if (networkSnapshot.empty) {
       // Create new network document whose doc ID is the userUid (aligns with rules)
       await setDoc(doc(familyNetworksCollection, userUid), {
@@ -666,6 +614,6 @@ const getInverseRelationship = (relationship) => {
     'Friend': 'Friend',
     'Caregiver': 'Patient'
   };
-  
+
   return inverseMap[relationship] || 'Family Member';
 };

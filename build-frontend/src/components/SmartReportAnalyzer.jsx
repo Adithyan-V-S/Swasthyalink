@@ -37,7 +37,7 @@ const SmartReportAnalyzer = () => {
         try {
             const base64Image = await convertToBase64(selectedImage);
 
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/analyze-report`, {
+            const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/analyzeReport', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -119,8 +119,8 @@ const SmartReportAnalyzer = () => {
                                                 onClick={handleAnalyze}
                                                 disabled={loading}
                                                 className={`px-8 py-3 rounded-full font-bold text-white shadow-lg transform transition-all hover:scale-105 ${loading
-                                                        ? 'bg-gray-400 cursor-not-allowed'
-                                                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+                                                    ? 'bg-gray-400 cursor-not-allowed'
+                                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
                                                     }`}
                                             >
                                                 {loading ? (
@@ -178,7 +178,7 @@ const SmartReportAnalyzer = () => {
                                     <tbody className="divide-y divide-gray-100">
                                         {analysis.results.map((item, index) => (
                                             <tr key={index} className={`hover:bg-gray-50 transition-colors ${item.status === 'High' ? 'bg-red-50' :
-                                                    item.status === 'Low' ? 'bg-yellow-50' : ''
+                                                item.status === 'Low' ? 'bg-yellow-50' : ''
                                                 }`}>
                                                 <td className="px-6 py-4 font-medium text-gray-900">{item.testName}</td>
                                                 <td className="px-6 py-4 font-bold text-gray-800">
@@ -187,8 +187,8 @@ const SmartReportAnalyzer = () => {
                                                 <td className="px-6 py-4 text-gray-600 text-sm">{item.referenceRange}</td>
                                                 <td className="px-6 py-4 text-center">
                                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm ${item.status === 'High' ? 'bg-red-100 text-red-700 border border-red-200' :
-                                                            item.status === 'Low' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
-                                                                'bg-green-100 text-green-700 border border-green-200'
+                                                        item.status === 'Low' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
+                                                            'bg-green-100 text-green-700 border border-green-200'
                                                         }`}>
                                                         {item.status === 'High' && <span className="material-icons text-[14px] mr-1">arrow_upward</span>}
                                                         {item.status === 'Low' && <span className="material-icons text-[14px] mr-1">arrow_downward</span>}

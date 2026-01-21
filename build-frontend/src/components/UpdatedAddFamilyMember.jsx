@@ -12,24 +12,26 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [relationship, setRelationship] = useState('');
+  const [accessLevel, setAccessLevel] = useState('limited');
+  const [isEmergencyContact, setIsEmergencyContact] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
   const relationships = [
-    'Spouse', 'Parent', 'Child', 'Sibling', 'Grandparent', 
+    'Spouse', 'Parent', 'Child', 'Sibling', 'Grandparent',
     'Grandchild', 'Uncle', 'Aunt', 'Cousin', 'Friend', 'Caregiver'
   ];
 
   // Search for users in Firestore
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
-    
+
     setIsSearching(true);
     setError('');
     setSearchResults([]);
-    
+
     try {
       // First try to search in Firestore users collection
       const usersRef = collection(db, 'users');
@@ -38,10 +40,10 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
         where('email', '>=', searchQuery.toLowerCase()),
         where('email', '<=', searchQuery.toLowerCase() + '\uf8ff')
       );
-      
+
       const querySnapshot = await getDocs(q);
       const users = [];
-      
+
       querySnapshot.forEach((doc) => {
         // Don't include current user in results
         if (doc.id !== currentUser.uid) {
@@ -51,7 +53,7 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
           });
         }
       });
-      
+
       // If no results from email, try name search in Firestore
       if (users.length === 0) {
         const nameQuery = query(
@@ -59,7 +61,7 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
           where('displayName', '>=', searchQuery),
           where('displayName', '<=', searchQuery + '\uf8ff')
         );
-        
+
         const nameQuerySnapshot = await getDocs(nameQuery);
         nameQuerySnapshot.forEach((doc) => {
           if (doc.id !== currentUser.uid) {
@@ -70,7 +72,7 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
           }
         });
       }
-      
+
       // If users found in Firestore, use them
       if (users.length > 0) {
         setSearchResults(users);
@@ -79,7 +81,7 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
         const response = await searchUsers(searchQuery);
         if (response.success) {
           // Filter out current user
-          const filteredResults = response.results.filter(user => 
+          const filteredResults = response.results.filter(user =>
             user.email !== currentUser?.email
           );
           setSearchResults(filteredResults);
@@ -88,12 +90,12 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
     } catch (error) {
       console.error('Error searching for users:', error);
       setError('Failed to search for users. Please try again.');
-      
+
       // Try backend API as fallback
       try {
         const response = await searchUsers(searchQuery);
         if (response.success) {
-          const filteredResults = response.results.filter(user => 
+          const filteredResults = response.results.filter(user =>
             user.email !== currentUser?.email
           );
           setSearchResults(filteredResults);
@@ -112,11 +114,11 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
       setError('Please select a user and relationship');
       return;
     }
-    
+
     setLoading(true);
     setError('');
     setSuccess('');
-    
+
     try {
       console.log("Sending family request with data:", {
         fromEmail: currentUser.email,
@@ -124,16 +126,21 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
         toName: selectedUser.displayName || selectedUser.name,
         relationship: relationship
       });
-      
+
       const response = await sendFamilyRequest({
+        fromUid: currentUser.uid,
         fromEmail: currentUser.email,
+        fromName: currentUser.displayName || currentUser.name || 'User',
+        toUid: selectedUser.id || selectedUser.uid,
         toEmail: selectedUser.email,
         toName: selectedUser.displayName || selectedUser.name,
-        relationship: relationship
+        relationship: relationship,
+        accessLevel: accessLevel,
+        isEmergencyContact: isEmergencyContact
       });
-      
+
       console.log("Family request response:", response);
-      
+
       if (response.success) {
         setSuccess('Family request sent successfully!');
         onAdd({
@@ -141,16 +148,20 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
           name: selectedUser.displayName || selectedUser.name,
           email: selectedUser.email,
           relationship: relationship,
+          accessLevel: accessLevel,
+          isEmergencyContact: isEmergencyContact,
           status: 'pending',
           dateAdded: new Date().toISOString()
         });
-        
+
         // Clear form
         setSelectedUser(null);
         setRelationship('');
+        setAccessLevel('limited');
+        setIsEmergencyContact(false);
         setSearchQuery('');
         setSearchResults([]);
-        
+
         // Close modal after a delay
         setTimeout(() => {
           onClose();
@@ -244,11 +255,10 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
                   <div
                     key={user.id || user.email}
                     onClick={() => setSelectedUser(user)}
-                    className={`p-3 flex items-center cursor-pointer hover:bg-gray-50 ${
-                      selectedUser && (selectedUser.id === user.id || selectedUser.email === user.email)
-                        ? 'bg-indigo-50 border-l-4 border-indigo-500'
-                        : 'border-b border-gray-200'
-                    }`}
+                    className={`p-3 flex items-center cursor-pointer hover:bg-gray-50 ${selectedUser && (selectedUser.id === user.id || selectedUser.email === user.email)
+                      ? 'bg-indigo-50 border-l-4 border-indigo-500'
+                      : 'border-b border-gray-200'
+                      }`}
                   >
                     <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
                       {user.photoURL ? (
@@ -324,6 +334,49 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
             </div>
           )}
 
+          {/* Access Level and Emergency Contact */}
+          {selectedUser && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Access Level <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={accessLevel}
+                  onChange={(e) => setAccessLevel(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="full">Full Access</option>
+                  <option value="limited">Limited Access</option>
+                  <option value="emergency">Emergency Only</option>
+                </select>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  {accessLevel === 'full' && "Can view all records and chat."}
+                  {accessLevel === 'limited' && "Can view basic stats and chat."}
+                  {accessLevel === 'emergency' && "Only accessible during emergencies."}
+                </p>
+              </div>
+
+              <div className="flex items-center mt-6">
+                <label className="flex items-center cursor-pointer group">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={isEmergencyContact}
+                      onChange={(e) => setIsEmergencyContact(e.target.checked)}
+                    />
+                    <div className={`w-10 h-4 rounded-full shadow-inner transition-colors ${isEmergencyContact ? 'bg-red-400' : 'bg-gray-300'}`}></div>
+                    <div className={`absolute -left-1 -top-1 w-6 h-6 rounded-full shadow transition-transform ${isEmergencyContact ? 'translate-x-full bg-red-600' : 'bg-white'}`}></div>
+                  </div>
+                  <div className="ml-3 text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+                    Emergency Contact
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -369,7 +422,7 @@ const UpdatedAddFamilyMember = ({ isOpen, onClose, onAdd }) => {
           >
             Cancel
           </Button>
-          
+
           <Button
             onClick={handleSendRequest}
             loading={loading}
