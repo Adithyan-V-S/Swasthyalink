@@ -1,43 +1,48 @@
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import { getAuth } from "firebase/auth";
+
+const REGION = 'us-central1';
+const PROJECT_ID = 'swasthyalink-42535';
+const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
 
 // Firestore collection for user profiles
 const PROFILE_COLLECTION = "userProfiles";
 
-// Helper function to create profile document with retry logic
+// Helper function to create profile document via Cloud Function
 async function createProfileDocument(userId, profileData) {
-  const maxRetries = 3;
-  let attempt = 0;
+  try {
+    console.log(`🔄 Creating profile document via Cloud Function`);
 
-  while (attempt < maxRetries) {
-    try {
-      console.log(`🔄 Creating profile document (attempt ${attempt + 1}/${maxRetries})`);
+    const auth = getAuth();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
 
-      const profileDoc = {
-        userId: userId,
-        ...profileData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
+    const payload = {
+      uid: userId,
+      ...profileData,
+      email: auth.currentUser?.email,
+      updatedAt: new Date().toISOString()
+    };
 
-      await setDoc(doc(db, PROFILE_COLLECTION, userId), profileDoc);
-      console.log('✅ Profile document created successfully');
-      return { success: true };
-    } catch (error) {
-      console.error(`❌ Profile document creation failed (attempt ${attempt + 1}):`, error);
-      attempt++;
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/createUser`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
 
-      if (attempt >= maxRetries) {
-        console.error('❌ All attempts to create profile document failed');
-        return {
-          success: false,
-          error: `Failed to create profile: ${error.message}`
-        };
-      }
+    if (!response.ok) throw new Error('Failed to create profile via Cloud Function');
 
-      // Wait before retrying (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-    }
+    console.log('✅ Profile document created successfully');
+    return { success: true };
+  } catch (error) {
+    console.error(`❌ Profile document creation failed:`, error);
+    return {
+      success: false,
+      error: `Failed to create profile: ${error.message}`
+    };
   }
 }
 
@@ -112,7 +117,7 @@ export const updateUserProfile = async (userId, profileData) => {
       return { success: true, skipped: true };
     }
 
-    // If profile doesn't exist, create it
+    // If profile doesn't exist, create it via Cloud Function
     if (!docSnap.exists()) {
       console.log('➕ Profile document not found, creating new one');
       const createResult = await createProfileDocument(userId, profileData);
@@ -120,7 +125,7 @@ export const updateUserProfile = async (userId, profileData) => {
         return createResult;
       }
     } else {
-      // Update existing profile
+      // Update existing profile (we could also use the Cloud Function here)
       const updatedData = {
         ...profileData,
         updatedAt: serverTimestamp()

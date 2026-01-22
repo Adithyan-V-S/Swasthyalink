@@ -270,3 +270,101 @@ exports.updateRelationship = onRequest(async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+exports.cleanupDuplicates = onRequest(async (req, res) => {
+    setCors(res);
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+
+    try {
+        const { uid } = req.query;
+        if (!uid) return res.status(400).json({ success: false, error: 'User ID is required' });
+
+        const snapshot = await db.collection('familyRequests')
+            .where('fromId', '==', uid)
+            .get();
+
+        const seen = new Set();
+        const batch = db.batch();
+        let deletedCount = 0;
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const key = `${data.fromId}-${data.toEmail}-${data.relationship}`;
+            if (seen.has(key)) {
+                batch.delete(doc.ref);
+                deletedCount++;
+            } else {
+                seen.add(key);
+            }
+        });
+
+        if (deletedCount > 0) {
+            await batch.commit();
+        }
+
+        res.json({ success: true, deletedCount });
+    } catch (error) {
+        console.error('Error cleaning duplicates:', error);
+        res.status(500).json({ success: false, error: 'Failed' });
+    }
+});
+
+exports.migrateFamilyConnections = onRequest(async (req, res) => {
+    setCors(res);
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+
+    try {
+        console.log('🔄 Starting family connections migration...');
+        const familyNetworksSnapshot = await db.collection('familyNetworks').get();
+
+        if (familyNetworksSnapshot.empty) {
+            return res.json({ success: true, message: 'No family networks found', updatesCount: 0 });
+        }
+
+        const batch = db.batch();
+        let updatesCount = 0;
+
+        for (const docSnapshot of familyNetworksSnapshot.docs) {
+            const userUid = docSnapshot.id;
+            const networkData = docSnapshot.data();
+            const members = networkData.members || [];
+
+            for (const member of members) {
+                if (!member.uid) continue;
+
+                const reverseNetworkRef = db.collection('familyNetworks').doc(member.uid);
+                const reverseNetworkDoc = await reverseNetworkRef.get();
+
+                if (!reverseNetworkDoc.exists) {
+                    const userDoc = await db.collection('users').doc(userUid).get();
+                    const userData = userDoc.exists ? userDoc.data() : {};
+
+                    const reverseMember = {
+                        uid: userUid,
+                        email: userData.email || networkData.userEmail || 'unknown@example.com',
+                        name: userData.displayName || userData.name || networkData.userName || 'Unknown User',
+                        relationship: 'Unknown',
+                        status: 'accepted',
+                        addedAt: admin.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    batch.set(reverseNetworkRef, {
+                        members: [reverseMember],
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        userEmail: member.email,
+                        userName: member.name
+                    });
+                    updatesCount++;
+                }
+            }
+        }
+
+        if (updatesCount > 0) {
+            await batch.commit();
+        }
+        res.json({ success: true, updatesCount });
+    } catch (error) {
+        console.error('Error migrating family connections:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});

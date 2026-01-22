@@ -5,9 +5,9 @@
 
 import { getAuth } from 'firebase/auth';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/api/prescriptions`
-  : 'https://swasthyalink-backend-v2.onrender.com/api/prescriptions';
+const REGION = 'us-central1';
+const PROJECT_ID = 'swasthyalink-42535';
+const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
 
 /**
  * Get prescriptions for the current patient
@@ -15,7 +15,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
 export const getPatientPrescriptions = async (currentUser = null) => {
   try {
     console.log('🔍 getPatientPrescriptions called with currentUser:', currentUser);
-    
+
     // Use provided currentUser or fallback to auth.currentUser
     if (!currentUser) {
       const auth = getAuth();
@@ -39,7 +39,7 @@ export const getPatientPrescriptions = async (currentUser = null) => {
     }
 
     console.log('🌐 Making API call to:', `${API_BASE}/patient`);
-    const response = await fetch(`${API_BASE}/patient`, {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getPatientPrescriptions?patientId=${currentUser.uid}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -52,7 +52,7 @@ export const getPatientPrescriptions = async (currentUser = null) => {
 
     if (!response.ok) {
       let errorData = {};
-      try { errorData = await response.json(); } catch (_) {}
+      try { errorData = await response.json(); } catch (_) { }
       console.error('❌ API error response:', errorData);
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
@@ -89,7 +89,7 @@ export const getPrescriptionDetails = async (prescriptionId, currentUser = null)
       token = 'test-patient-token'; // Fallback for production
     }
 
-    const response = await fetch(`${API_BASE}/${prescriptionId}`, {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getPrescriptionDetails?prescriptionId=${prescriptionId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -99,7 +99,7 @@ export const getPrescriptionDetails = async (prescriptionId, currentUser = null)
 
     if (!response.ok) {
       let errorData = {};
-      try { errorData = await response.json(); } catch (_) {}
+      try { errorData = await response.json(); } catch (_) { }
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
@@ -135,18 +135,18 @@ export const updatePrescriptionStatus = async (prescriptionId, status, currentUs
       token = 'test-patient-token'; // Fallback for production
     }
 
-    const response = await fetch(`${API_BASE}/${prescriptionId}/status`, {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/updatePrescriptionStatus`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ prescriptionId, status, userId: currentUser.uid }),
     });
 
     if (!response.ok) {
       let errorData = {};
-      try { errorData = await response.json(); } catch (_) {}
+      try { errorData = await response.json(); } catch (_) { }
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
@@ -182,18 +182,18 @@ export const cancelPrescription = async (prescriptionId, reason = '', currentUse
       token = 'test-patient-token'; // Fallback for production
     }
 
-    const response = await fetch(`${API_BASE}/${prescriptionId}`, {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/cancelPrescription`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({ prescriptionId, userId: currentUser.uid, reason }),
     });
 
     if (!response.ok) {
       let errorData = {};
-      try { errorData = await response.json(); } catch (_) {}
+      try { errorData = await response.json(); } catch (_) { }
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 

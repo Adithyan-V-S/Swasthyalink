@@ -27,12 +27,21 @@ setGlobalOptions({ maxInstances: 10 });
 const { analyzeReport } = require('./analyzeReport');
 const { geminiChat } = require('./geminiChat');
 const { chatbot } = require('./chatbot');
-const { searchUsers, advancedSearch } = require('./userManagement');
-const { sendRequest, acceptRequest, rejectRequest, getNetwork, getRequests, updateRelationship } = require('./familyManagement');
+const { createUser, searchUsers, advancedSearch } = require('./userManagement');
+const { sendRequest, acceptRequest, rejectRequest, getNetwork, getRequests, updateRelationship, cleanupDuplicates, migrateFamilyConnections } = require('./familyManagement');
+const patientDoctor = require('./patientDoctor');
+const prescriptions = require('./prescriptions');
+const mlService = require('./mlService');
+const doctorManagement = require('./doctorManagement');
+const notificationService = require('./notifications');
+const presenceService = require('./presence');
+const otpFunctions = require('./otpFunctions');
+const adminService = require('./adminService');
 
 exports.analyzeReport = analyzeReport;
 exports.geminiChat = geminiChat;
 exports.chatbot = chatbot;
+exports.createUser = createUser;
 exports.searchUsers = searchUsers;
 exports.advancedSearch = advancedSearch;
 exports.sendFamilyRequest = sendRequest;
@@ -41,6 +50,65 @@ exports.rejectFamilyRequest = rejectRequest;
 exports.getFamilyNetwork = getNetwork;
 exports.getFamilyRequests = getRequests;
 exports.updateRelationship = updateRelationship;
+exports.cleanupFamilyDuplicates = cleanupDuplicates;
+exports.migrateFamilyConnections = migrateFamilyConnections;
+
+// Patient-Doctor functions
+exports.sendPatientDoctorRequest = patientDoctor.sendConnectionRequest;
+exports.getPendingPatientDoctorRequests = patientDoctor.getPendingRequests;
+exports.acceptPatientDoctorRequest = patientDoctor.acceptRequest;
+exports.rejectPatientDoctorRequest = patientDoctor.rejectRequest;
+exports.getConnectedDoctors = patientDoctor.getConnectedDoctors;
+exports.getConnectedPatients = patientDoctor.getConnectedPatients;
+exports.updatePatientDoctorPermissions = patientDoctor.updatePermissions;
+exports.terminatePatientDoctorRelationship = patientDoctor.terminateRelationship;
+exports.searchPatientsForDoctor = patientDoctor.searchPatients;
+
+// Prescription functions
+exports.createPrescription = prescriptions.createPrescription;
+exports.getDoctorPrescriptions = prescriptions.getDoctorPrescriptions;
+exports.getPatientPrescriptions = prescriptions.getPatientPrescriptions;
+exports.sendPrescription = prescriptions.sendPrescription;
+exports.updatePrescriptionStatus = prescriptions.updatePrescriptionStatus;
+exports.getPrescriptionDetails = prescriptions.getPrescriptionDetails;
+exports.cancelPrescription = prescriptions.cancelPrescription;
+exports.getPrescriptionTemplates = prescriptions.getPrescriptionTemplates;
+exports.searchDrugs = prescriptions.searchDrugs;
+
+// ML functions
+exports.healthRiskAssessment = mlService.healthRiskAssessment;
+exports.healthTrends = mlService.healthTrends;
+exports.diseaseRisk = mlService.diseaseRisk;
+exports.healthStats = mlService.healthStats;
+exports.healthRecommendations = mlService.healthRecommendations;
+exports.validateHealthData = mlService.validateHealthData;
+
+// Doctor Management functions
+exports.submitDoctorRegistration = doctorManagement.submitDoctorRegistration;
+exports.getPendingDoctorRegistrations = doctorManagement.getPendingDoctorRegistrations;
+exports.approveDoctorRegistration = doctorManagement.approveDoctorRegistration;
+exports.rejectDoctorRegistration = doctorManagement.rejectDoctorRegistration;
+exports.getAllDoctors = doctorManagement.getAllDoctors;
+exports.updateDoctorProfile = doctorManagement.updateDoctorProfile;
+exports.authenticateDoctor = doctorManagement.authenticateDoctor;
+exports.getDoctorStatistics = doctorManagement.getDoctorStatistics;
+exports.getAllPatients = doctorManagement.getAllPatients;
+
+// Notifications functions
+exports.getNotifications = notificationService.getNotifications;
+exports.markNotificationRead = notificationService.markNotificationRead;
+exports.markAllNotificationsRead = notificationService.markAllNotificationsRead;
+exports.deleteNotification = notificationService.deleteNotification;
+exports.createNotification = notificationService.createNotification;
+
+// Presence functions
+exports.updatePresence = presenceService.updatePresence;
+exports.getBatchPresence = presenceService.getBatchPresence;
+
+// OTP functions
+exports.sendOTP = otpFunctions.sendOTP;
+exports.verifyOTP = otpFunctions.verifyOTP;
+exports.resendOTP = otpFunctions.resendOTP;
 
 const admin = require('firebase-admin');
 
@@ -70,3 +138,8 @@ exports.onFamilyRequestCreate = onDocumentCreated('familyRequests/{requestId}', 
 });
 
 // Add other triggers if needed...
+
+// Admin functions
+exports.adminLogin = adminService.adminLogin;
+exports.updateDoctorStatus = adminService.updateDoctorStatus;
+exports.disableDoctor = adminService.disableDoctor;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as adminService from '../services/adminService';
 
 const AdminDoctorManagement = () => {
   const [registrations, setRegistrations] = useState([]);
@@ -11,10 +12,9 @@ const AdminDoctorManagement = () => {
 
   const fetchRegistrations = async () => {
     try {
-      const res = await fetch('/api/admin/doctors/registrations');
-      const data = await res.json();
+      const data = await adminService.getPendingDoctorRegistrations();
       if (data.success) {
-        setRegistrations(data.registrations);
+        setRegistrations(data.registrations || []);
       }
     } catch (err) {
       console.error('Failed to fetch registrations', err);
@@ -23,10 +23,9 @@ const AdminDoctorManagement = () => {
 
   const fetchDoctors = async () => {
     try {
-      const res = await fetch('/api/admin/doctors');
-      const data = await res.json();
+      const data = await adminService.getAllDoctors();
       if (data.success) {
-        setDoctors(data.doctors);
+        setDoctors(data.doctors || []);
       }
     } catch (err) {
       console.error('Failed to fetch doctors', err);
@@ -46,12 +45,7 @@ const AdminDoctorManagement = () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/admin/doctors/approve/${registration.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loginId, password }),
-      });
-      const data = await res.json();
+      const data = await adminService.approveDoctorRegistration(registration.id, loginId, password);
       if (data.success) {
         setSelectedRegistration(null);
         setLoginId('');
@@ -72,10 +66,7 @@ const AdminDoctorManagement = () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/admin/doctors/reject/${registration.id}`, {
-        method: 'POST',
-      });
-      const data = await res.json();
+      const data = await adminService.rejectDoctorRegistration(registration.id);
       if (data.success) {
         fetchRegistrations();
       } else {

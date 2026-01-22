@@ -20,12 +20,12 @@ const FamilyCleanupButton = () => {
     setMessage('');
 
     try {
-      const response = await fetch('/api/family/cleanup-duplicates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ uid: user.uid }),
+      const REGION = 'us-central1';
+      const PROJECT_ID = 'swasthyalink-42535';
+      const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
+
+      const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/cleanupFamilyDuplicates?uid=${user.uid}`, {
+        method: 'POST'
       });
 
       const result = await response.json();

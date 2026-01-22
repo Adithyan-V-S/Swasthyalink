@@ -20,44 +20,45 @@ import { ERROR_MESSAGES } from '../constants';
  * Handles all authentication-related operations
  */
 
-// Helper function to create user document with retry logic
+const REGION = 'us-central1';
+const PROJECT_ID = 'swasthyalink-42535';
+const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
+
+// Helper function to create user document via Cloud Function
 async function createUserDocument(user, userData = {}) {
-  const maxRetries = 3;
-  let attempt = 0;
+  try {
+    console.log(`🔄 Creating user document via Cloud Function`);
 
-  while (attempt < maxRetries) {
-    try {
-      console.log(`🔄 Creating user document (attempt ${attempt + 1}/${maxRetries})`);
+    const auth = getAuth();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
 
-      const userDoc = {
-        uid: user.uid,
-        name: userData.displayName || user.displayName || 'Unknown User',
-        email: user.email,
-        role: userData.role || 'patient',
-        createdAt: new Date().toISOString(),
-        lastActive: serverTimestamp(),
-        emailVerified: user.emailVerified,
-        ...userData
-      };
+    const payload = {
+      uid: user.uid,
+      email: user.email,
+      name: userData.displayName || user.displayName || userData.name || 'Unknown User',
+      role: userData.role || 'patient',
+      ...userData
+    };
 
-      await setDoc(doc(db, "users", user.uid), userDoc);
-      console.log('✅ User document created successfully');
-      return { success: true };
-    } catch (error) {
-      console.error(`❌ User document creation failed (attempt ${attempt + 1}):`, error);
-      attempt++;
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/createUser`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
 
-      if (attempt >= maxRetries) {
-        console.error('❌ All attempts to create user document failed');
-        return {
-          success: false,
-          error: `Failed to create user profile: ${error.message}`
-        };
-      }
+    if (!response.ok) throw new Error('Failed to create user profile via Cloud Function');
 
-      // Wait before retrying (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-    }
+    console.log('✅ User document created successfully');
+    return { success: true };
+  } catch (error) {
+    console.error(`❌ User document creation failed:`, error);
+    return {
+      success: false,
+      error: `Failed to create user profile: ${error.message}`
+    };
   }
 }
 
@@ -153,7 +154,7 @@ class AuthService {
       };
     }
   }
-  
+
   /**
    * Login user with email and password
    * @param {string} email - User email
@@ -224,7 +225,7 @@ class AuthService {
       };
     }
   }
-  
+
   /**
    * Logout current user
    * @returns {Promise<object>} - Success or error
@@ -241,7 +242,7 @@ class AuthService {
       };
     }
   }
-  
+
   /**
    * Send password reset email
    * @param {string} email - User email
@@ -256,22 +257,22 @@ class AuthService {
       };
     } catch (error) {
       console.error('Password reset error:', error);
-      
+
       let errorMessage = 'Failed to send password reset email. Please try again.';
-      
+
       if (error.code === 'auth/user-not-found') {
         errorMessage = 'No account found with this email address.';
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = 'Please enter a valid email address.';
       }
-      
+
       return {
         success: false,
         error: errorMessage
       };
     }
   }
-  
+
   /**
    * Update user profile
    * @param {object} userData - User data to update
@@ -280,19 +281,19 @@ class AuthService {
   async updateUserProfile(userData) {
     try {
       const user = auth.currentUser;
-      
+
       if (!user) {
         return {
           success: false,
           error: 'No authenticated user found. Please log in again.'
         };
       }
-      
+
       await updateProfile(user, {
         displayName: userData.displayName || user.displayName,
         photoURL: userData.photoURL || user.photoURL
       });
-      
+
       return {
         success: true,
         user: {
@@ -311,7 +312,7 @@ class AuthService {
       };
     }
   }
-  
+
   /**
    * Update user email
    * @param {string} newEmail - New email address
@@ -321,33 +322,33 @@ class AuthService {
   async updateUserEmail(newEmail, password) {
     try {
       const user = auth.currentUser;
-      
+
       if (!user) {
         return {
           success: false,
           error: 'No authenticated user found. Please log in again.'
         };
       }
-      
+
       // Re-authenticate user before changing email
       const credential = EmailAuthProvider.credential(user.email, password);
       await reauthenticateWithCredential(user, credential);
-      
+
       // Update email
       await updateEmail(user, newEmail);
-      
+
       // Send verification email
       await sendEmailVerification(user);
-      
+
       return {
         success: true,
         message: 'Email updated successfully. Please verify your new email address.'
       };
     } catch (error) {
       console.error('Update email error:', error);
-      
+
       let errorMessage = 'Failed to update email. Please try again.';
-      
+
       if (error.code === 'auth/requires-recent-login') {
         errorMessage = 'This operation requires recent authentication. Please log in again.';
       } else if (error.code === 'auth/invalid-email') {
@@ -357,14 +358,14 @@ class AuthService {
       } else if (error.code === 'auth/wrong-password') {
         errorMessage = 'Incorrect password. Please try again.';
       }
-      
+
       return {
         success: false,
         error: errorMessage
       };
     }
   }
-  
+
   /**
    * Update user password
    * @param {string} currentPassword - Current password
@@ -374,30 +375,30 @@ class AuthService {
   async updateUserPassword(currentPassword, newPassword) {
     try {
       const user = auth.currentUser;
-      
+
       if (!user) {
         return {
           success: false,
           error: 'No authenticated user found. Please log in again.'
         };
       }
-      
+
       // Re-authenticate user before changing password
       const credential = EmailAuthProvider.credential(user.email, currentPassword);
       await reauthenticateWithCredential(user, credential);
-      
+
       // Update password
       await updatePassword(user, newPassword);
-      
+
       return {
         success: true,
         message: 'Password updated successfully.'
       };
     } catch (error) {
       console.error('Update password error:', error);
-      
+
       let errorMessage = 'Failed to update password. Please try again.';
-      
+
       if (error.code === 'auth/requires-recent-login') {
         errorMessage = 'This operation requires recent authentication. Please log in again.';
       } else if (error.code === 'auth/weak-password') {
@@ -405,14 +406,14 @@ class AuthService {
       } else if (error.code === 'auth/wrong-password') {
         errorMessage = 'Incorrect current password. Please try again.';
       }
-      
+
       return {
         success: false,
         error: errorMessage
       };
     }
   }
-  
+
   /**
    * Get current authenticated user
    * @returns {object|null} - Current user or null

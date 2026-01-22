@@ -1,5 +1,10 @@
 import { db } from '../firebaseConfig';
-import { doc, setDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+
+const REGION = 'us-central1';
+const PROJECT_ID = 'swasthyalink-42535';
+const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
 
 // Presence states
 export const PRESENCE_STATES = {
@@ -18,50 +23,23 @@ let lastPresenceWrite = {
 };
 
 export const updateUserPresence = async (userId, status = PRESENCE_STATES.ONLINE) => {
-  // Check if this is a test user (mock authentication) or writes explicitly disabled
-  const isTestUser = localStorage.getItem('testUser') !== null;
-  const presenceWritesDisabled = localStorage.getItem('disablePresenceWrites') === 'true';
-
-  if (isTestUser || presenceWritesDisabled) {
-    if (presenceWritesDisabled) {
-      console.warn('⚠️ Presence writes disabled via localStorage flag `disablePresenceWrites`');
-    }
-    return { success: true, skipped: true };
-  }
-
-  // Throttle repeated writes with same status
-  const now = Date.now();
-  if (
-    lastPresenceWrite.userId === userId &&
-    lastPresenceWrite.status === status &&
-    now - lastPresenceWrite.timestampMs < WRITE_MIN_INTERVAL_MS
-  ) {
-    // Skip write
-    return { success: true, throttled: true };
-  }
-
   try {
-    const presenceRef = doc(db, 'presence', userId);
-    await setDoc(
-      presenceRef,
-      {
-        status,
-        lastSeen: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    const auth = getAuth();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
 
-    lastPresenceWrite = { userId, status, timestampMs: now };
-    return { success: true };
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/updatePresence`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ userId, status })
+    });
+
+    if (!response.ok) throw new Error('Failed to update presence');
+    return await response.json();
   } catch (error) {
-    // If quota or resource exhausted, allow client to switch off writes
-    const message = String(error?.message || '');
-    if (message.includes('quota') || message.includes('resource-exhausted')) {
-      console.error('🚫 Presence write blocked due to quota; set `localStorage.disablePresenceWrites=true` to pause writes');
-    } else {
-      console.error('Error updating presence:', error);
-    }
+    console.error('Error updating presence:', error);
     return { success: false, error: error.message };
   }
 };
@@ -126,7 +104,7 @@ export const subscribeToMultipleUsersPresence = (userIds, callback) => {
       presenceData[userId] = presence;
       callback({ ...presenceData });
     });
-    
+
     if (unsubscribe) {
       unsubscribeFunctions.push(unsubscribe);
     }
@@ -142,56 +120,21 @@ export const subscribeToMultipleUsersPresence = (userIds, callback) => {
 
 // Get batch presence data (one-time fetch)
 export const getBatchPresenceData = async (userIds) => {
-  // Check if this is a test user (mock authentication)
-  const isTestUser = localStorage.getItem('testUser') !== null;
-
-  if (isTestUser) {
-    console.log('🧪 Using test user - returning empty presence data');
-    const presenceData = {};
-    userIds.forEach(userId => {
-      presenceData[userId] = {
-        status: PRESENCE_STATES.OFFLINE,
-        lastSeen: null
-      };
-    });
-    return { success: true, presenceData };
-  }
-
   try {
-    if (!Array.isArray(userIds) || userIds.length === 0) {
-      return { success: true, presenceData: {} };
-    }
+    const auth = getAuth();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
 
-    const presenceData = {};
-
-    // Firestore has a limit of 10 documents per 'in' query
-    const batches = [];
-    for (let i = 0; i < userIds.length; i += 10) {
-      batches.push(userIds.slice(i, i + 10));
-    }
-
-    for (const batch of batches) {
-      const presenceRef = collection(db, 'presence');
-      const q = query(presenceRef, where('__name__', 'in', batch));
-      const querySnapshot = await getDocs(q);
-
-      querySnapshot.forEach((doc) => {
-        const presence = doc.data();
-        presenceData[doc.id] = presence;
-      });
-    }
-
-    // Fill in missing users with offline status
-    userIds.forEach(userId => {
-      if (!presenceData[userId]) {
-        presenceData[userId] = {
-          status: PRESENCE_STATES.OFFLINE,
-          lastSeen: null
-        };
-      }
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getBatchPresence`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ userIds })
     });
 
-    return { success: true, presenceData };
+    if (!response.ok) throw new Error('Failed to fetch batch presence');
+    return await response.json();
   } catch (error) {
     console.error('Error fetching batch presence data:', error);
     return { success: false, error: error.message, presenceData: {} };
@@ -206,12 +149,12 @@ class PresenceManager {
     this.awayTimeout = null;
     this.offlineTimeout = null;
     this.heartbeatInterval = null;
-    
+
     this.AWAY_THRESHOLD = 5 * 60 * 1000; // 5 minutes
     this.OFFLINE_THRESHOLD = 30 * 60 * 1000; // 30 minutes
     // Increase heartbeat interval to reduce Firestore writes
     this.HEARTBEAT_INTERVAL = 5 * 60 * 1000; // 5 minutes
-    
+
     this.init();
   }
 
@@ -223,23 +166,23 @@ class PresenceManager {
 
     // Set up activity listeners
     this.setupActivityListeners();
-    
+
     // Set up heartbeat
     this.startHeartbeat();
-    
+
     // Handle page visibility changes
     this.setupVisibilityListener();
-    
+
     // Handle beforeunload
     this.setupBeforeUnloadListener();
   }
 
   setupActivityListeners() {
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-    
+
     const resetTimers = () => {
       this.isActive = true;
-      
+
       // Clear existing timers
       if (this.awayTimeout) {
         clearTimeout(this.awayTimeout);
@@ -247,16 +190,16 @@ class PresenceManager {
       if (this.offlineTimeout) {
         clearTimeout(this.offlineTimeout);
       }
-      
+
       // Set user online if not already (throttled)
       setUserOnline(this.userId);
-      
+
       // Set away timer
       this.awayTimeout = setTimeout(() => {
         this.isActive = false;
         setUserAway(this.userId);
       }, this.AWAY_THRESHOLD);
-      
+
       // Set offline timer
       this.offlineTimeout = setTimeout(() => {
         setUserOffline(this.userId);
@@ -301,7 +244,7 @@ class PresenceManager {
     if (this.awayTimeout) clearTimeout(this.awayTimeout);
     if (this.offlineTimeout) clearTimeout(this.offlineTimeout);
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
-    
+
     // Avoid forcing an offline write during destroy to reduce writes
   }
 }
@@ -316,13 +259,13 @@ export const initializePresenceTracking = (userId) => {
   const isTestUser = localStorage.getItem('testUser') !== null;
   if (presenceWritesDisabled || isTestUser) {
     console.warn('⚠️ Skipping presence initialization (writes disabled or test user)');
-    return () => {};
+    return () => { };
   }
 
   if (globalPresenceManager) {
     globalPresenceManager.destroy();
   }
-  
+
   if (userId) {
     globalPresenceManager = new PresenceManager(userId);
   }
@@ -339,9 +282,9 @@ export const cleanupPresenceTracking = () => {
 // Format presence status for display
 export const formatPresenceStatus = (presence) => {
   if (!presence) return 'Offline';
-  
+
   const { status, lastSeen } = presence;
-  
+
   switch (status) {
     case PRESENCE_STATES.ONLINE:
       return 'Online';
@@ -355,7 +298,7 @@ export const formatPresenceStatus = (presence) => {
         const diffMins = Math.floor(diffMs / (1000 * 60));
         const diffHours = Math.floor(diffMins / 60);
         const diffDays = Math.floor(diffHours / 24);
-        
+
         if (diffMins < 1) return 'Just now';
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;

@@ -18,10 +18,14 @@ import {
 } from './notificationService';
 import { getFamilyNetwork as getFirebaseFamilyNetwork } from './firebaseFamilyService';
 
+const REGION = 'us-central1';
+const PROJECT_ID = 'swasthyalink-42535';
+const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
+
 // Send a family request
 export const sendFamilyRequest = async (requestData) => {
   try {
-    const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/sendFamilyRequest', {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/sendFamilyRequest`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -43,7 +47,7 @@ export const sendFamilyRequest = async (requestData) => {
 // Accept a family request
 export const acceptFamilyRequest = async (requestId) => {
   try {
-    const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/acceptFamilyRequest', {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/acceptFamilyRequest`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -65,7 +69,7 @@ export const acceptFamilyRequest = async (requestId) => {
 // Reject a family request
 export const rejectFamilyRequest = async (requestId) => {
   try {
-    const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/rejectFamilyRequest', {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/rejectFamilyRequest`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -87,7 +91,7 @@ export const rejectFamilyRequest = async (requestId) => {
 // Get family requests 
 export const getFamilyRequests = async (userEmail) => {
   try {
-    const response = await fetch(`https://us-central1-swasthyalink-42535.cloudfunctions.net/getFamilyRequests?email=${encodeURIComponent(userEmail)}`);
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getFamilyRequests?email=${encodeURIComponent(userEmail)}`);
     if (!response.ok) {
       throw new Error('Failed to fetch family requests');
     }
@@ -108,7 +112,7 @@ export const getFamilyRequests = async (userEmail) => {
 // Get family network
 export const getFamilyNetwork = async (userUid) => {
   try {
-    const response = await fetch(`https://us-central1-swasthyalink-42535.cloudfunctions.net/getFamilyNetwork?uid=${encodeURIComponent(userUid)}`);
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getFamilyNetwork?uid=${encodeURIComponent(userUid)}`);
     if (!response.ok) {
       throw new Error('Failed to fetch family network');
     }
@@ -163,7 +167,7 @@ export const updateFamilyMemberAccess = updateMemberAccessLevel;
 // New function to search users via backend API
 export const searchUsers = async (query) => {
   try {
-    const response = await fetch(`https://us-central1-swasthyalink-42535.cloudfunctions.net/searchUsers?query=${encodeURIComponent(query)}`);
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/searchUsers?query=${encodeURIComponent(query)}`);
     if (!response.ok) {
       throw new Error('Failed to fetch search results');
     }
@@ -178,7 +182,7 @@ export const searchUsers = async (query) => {
 // New function to update family request relationship
 export const updateFamilyRequestRelationship = async ({ requestId, newRelationship }) => {
   try {
-    const response = await fetch(`https://us-central1-swasthyalink-42535.cloudfunctions.net/updateRelationship`, {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/updateRelationship`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

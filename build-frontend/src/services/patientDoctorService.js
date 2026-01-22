@@ -1,9 +1,9 @@
 import { getAuth } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/api/patient-doctor`
-  : 'https://swasthyalink-backend-v2.onrender.com/api/patient-doctor';
+const REGION = 'us-central1';
+const PROJECT_ID = 'swasthyalink-42535';
+const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
 
 /**
  * Search for patients by query
@@ -14,7 +14,7 @@ export const searchPatients = async (query) => {
   try {
     // Check if this is a test user
     const isTestUser = localStorage.getItem('testUser') !== null;
-    
+
     if (isTestUser) {
       console.log('🧪 Using test user - returning mock search results');
       // Return mock data for test users
@@ -28,7 +28,7 @@ export const searchPatients = async (query) => {
             phone: '+1234567890'
           },
           {
-            id: 'test-patient-2', 
+            id: 'test-patient-2',
             name: 'Test Patient 2',
             email: 'patient2@example.com',
             phone: '+1234567891'
@@ -36,24 +36,24 @@ export const searchPatients = async (query) => {
         ]
       };
     }
-    
+
     const auth = getAuth();
     const currentUser = auth.currentUser;
-    
+
     if (!currentUser) {
       console.error('No authenticated user found');
       throw new Error('User not authenticated. Please sign in again.');
     }
-    
+
     console.log('Getting ID token for user:', currentUser.uid);
     console.log('User object type:', typeof currentUser);
     console.log('User has getIdToken method:', typeof currentUser.getIdToken);
-    
+
     if (typeof currentUser.getIdToken !== 'function') {
       console.error('currentUser is not a valid Firebase User object');
       throw new Error('Invalid user object. Please sign in again.');
     }
-    
+
     // In production, use a test token if Firebase auth fails
     let token;
     try {
@@ -63,8 +63,8 @@ export const searchPatients = async (query) => {
       token = 'test-patient-token'; // Fallback for production
     }
     console.log('Token obtained successfully, length:', token.length);
-    
-    const response = await fetch(`${API_BASE}/search/patients?query=${encodeURIComponent(query)}`, {
+
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/searchPatientsForDoctor?query=${encodeURIComponent(query)}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -112,16 +112,16 @@ export const createConnectionRequest = async (requestData, currentUser = null) =
       console.error('No authenticated user found');
       throw new Error('User not authenticated. Please sign in again.');
     }
-    
+
     console.log('Getting ID token for user:', currentUser.uid);
     console.log('User object type:', typeof currentUser);
     console.log('User has getIdToken method:', typeof currentUser.getIdToken);
-    
+
     if (typeof currentUser.getIdToken !== 'function') {
       console.error('currentUser is not a valid Firebase User object');
       throw new Error('Invalid user object. Please sign in again.');
     }
-    
+
     // In production, use a test token if Firebase auth fails
     let token;
     try {
@@ -132,8 +132,8 @@ export const createConnectionRequest = async (requestData, currentUser = null) =
     }
     console.log('Token obtained successfully, length:', token.length);
     console.log('Sending connection request:', requestData);
-    
-    const response = await fetch(`${API_BASE}/connection-request`, {
+
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/sendPatientDoctorRequest`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -144,7 +144,7 @@ export const createConnectionRequest = async (requestData, currentUser = null) =
 
     if (!response.ok) {
       let errorData = {};
-      try { errorData = await response.json(); } catch (_) {}
+      try { errorData = await response.json(); } catch (_) { }
       // Treat 409 (Conflict) as a soft failure so the UI can surface a friendly message
       if (response.status === 409) {
         console.warn('Connection already exists (409):', errorData);
@@ -172,7 +172,7 @@ export const resendRequest = async (requestId) => {
   try {
     // Check if this is a test user
     const isTestUser = localStorage.getItem('testUser') !== null;
-    
+
     if (isTestUser) {
       console.log('🧪 Using test user - simulating resend request');
       return {
@@ -180,7 +180,7 @@ export const resendRequest = async (requestId) => {
         message: 'OTP resent successfully (test mode)'
       };
     }
-    
+
     // In production, use a test token if Firebase auth fails
     let token;
     try {
@@ -189,7 +189,7 @@ export const resendRequest = async (requestId) => {
       console.log('Firebase auth failed, using test token:', error.message);
       token = 'test-patient-token'; // Fallback for production
     }
-    
+
     const response = await fetch(`${API_BASE}/resend/${requestId}`, {
       method: 'POST',
       headers: {
@@ -219,7 +219,7 @@ export const resendRequest = async (requestId) => {
 export const getPendingRequests = async (uid, email, currentUser = null) => {
   try {
     console.log('🔍 getPendingRequests called with:', { uid, email, currentUser: currentUser?.uid });
-    
+
     // Use provided currentUser or fallback to auth.currentUser
     if (!currentUser) {
       const auth = getAuth();
@@ -245,7 +245,7 @@ export const getPendingRequests = async (uid, email, currentUser = null) => {
     console.log('🌐 Making API call to:', `${API_BASE}/requests`);
     const emailParam = email ? `?patientEmail=${encodeURIComponent(email)}` : '';
     console.log('🔍 Email parameter for requests:', emailParam);
-    const response = await fetch(`${API_BASE}/requests${emailParam}`, {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getPendingPatientDoctorRequests${emailParam}&patientId=${currentUser.uid}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -258,7 +258,7 @@ export const getPendingRequests = async (uid, email, currentUser = null) => {
 
     if (!response.ok) {
       let errorData = {};
-      try { errorData = await response.json(); } catch (_) {}
+      try { errorData = await response.json(); } catch (_) { }
       console.error('❌ API error response:', errorData);
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
@@ -282,18 +282,18 @@ export const acceptRequest = async (requestId, otp) => {
   try {
     // Check if this is a test user
     const isTestUser = localStorage.getItem('testUser') !== null;
-    
+
     if (isTestUser) {
       console.log('🧪 Using test user - sending real accept request to backend');
       // Don't simulate, send real request even for test users
     }
-    
+
     // In production, use a test token if Firebase auth fails
     let token;
     try {
       const auth = getAuth();
       const user = auth.currentUser;
-      
+
       if (user && user.getIdToken) {
         token = await user.getIdToken();
       } else {
@@ -304,19 +304,16 @@ export const acceptRequest = async (requestId, otp) => {
       console.log('Firebase auth failed, using test token:', error.message);
       token = 'test-patient-token'; // Fallback for production
     }
-    
-    console.log('🌐 Making accept request API call to:', `${API_BASE}/accept/${requestId}`);
-    console.log('🔑 Using token:', token.substring(0, 20) + '...');
-    
-    const response = await fetch(`${API_BASE}/accept/${requestId}`, {
+
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/acceptPatientDoctorRequest`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ otp }),
+      body: JSON.stringify({ requestId, patientId: auth.currentUser?.uid, otp }),
     });
-    
+
     console.log('📡 Accept request API response status:', response.status);
     console.log('📡 Accept request API response ok:', response.ok);
 
@@ -341,7 +338,7 @@ export const acceptRequest = async (requestId, otp) => {
 export const getConnectedDoctors = async (uid, email, currentUser = null) => {
   try {
     console.log('🔍 getConnectedDoctors called with:', { uid, email, currentUser: currentUser?.uid });
-    
+
     // Use provided currentUser or fallback to auth.currentUser
     if (!currentUser) {
       const auth = getAuth();
@@ -364,10 +361,7 @@ export const getConnectedDoctors = async (uid, email, currentUser = null) => {
       token = 'test-patient-token'; // Fallback for production
     }
 
-    console.log('🌐 Making API call to:', `${API_BASE}/patient/doctors`);
-    const emailParam = email ? `?email=${encodeURIComponent(email)}` : '';
-    console.log('🔍 Email parameter for doctors:', emailParam);
-    const response = await fetch(`${API_BASE}/patient/doctors${emailParam}`, {
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getConnectedDoctors${emailParam}${emailParam ? '&' : '?'}patientId=${currentUser.uid}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -380,7 +374,7 @@ export const getConnectedDoctors = async (uid, email, currentUser = null) => {
 
     if (!response.ok) {
       let errorData = {};
-      try { errorData = await response.json(); } catch (_) {}
+      try { errorData = await response.json(); } catch (_) { }
       console.error('❌ API error response:', errorData);
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
@@ -403,7 +397,7 @@ export const getConnectedPatients = async (uid) => {
   try {
     // Check if this is a test user
     const isTestUser = localStorage.getItem('testUser') !== null;
-    
+
     if (isTestUser) {
       console.log('🧪 Using test user - returning mock connected patients');
       // Return mock data for test users
@@ -426,7 +420,7 @@ export const getConnectedPatients = async (uid) => {
         }
       ];
     }
-    
+
     // In production, use a test token if Firebase auth fails
     let token;
     try {
@@ -435,8 +429,8 @@ export const getConnectedPatients = async (uid) => {
       console.log('Firebase auth failed, using test token:', error.message);
       token = 'test-patient-token'; // Fallback for production
     }
-    
-    const response = await fetch(`${API_BASE}/doctor/patients`, {
+
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getConnectedPatients?doctorId=${currentUser?.uid}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

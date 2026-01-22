@@ -1,18 +1,22 @@
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot, 
-  updateDoc, 
-  doc, 
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  updateDoc,
+  doc,
   serverTimestamp,
   writeBatch,
   getDocs
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../firebaseConfig';
+
+const REGION = 'us-central1';
+const PROJECT_ID = 'swasthyalink-42535';
+const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
 
 // Notification types
 export const NOTIFICATION_TYPES = {
@@ -31,57 +35,22 @@ export const NOTIFICATION_TYPES = {
 };
 
 // Create a new notification (Firestore write)
-export const createNotification = async ({
-  recipientId,
-  senderId,
-  type,
-  title,
-  message,
-  data = {},
-  priority = 'normal' // 'low', 'normal', 'high', 'urgent'
-}) => {
+export const createNotification = async (notifData) => {
   try {
-    // Check quota before writing
-    if (!checkQuota('write')) {
-      console.warn('⚠️ Firebase write quota exceeded, using local storage fallback');
-      // Store in local storage as fallback
-      const localNotification = {
-        id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        recipientId,
-        senderId,
-        type,
-        title,
-        message,
-        data,
-        priority,
-        read: false,
-        deleted: false,
-        timestamp: new Date(),
-        isLocal: true
-      };
-      
-      // Store in localStorage
-      const existingNotifications = JSON.parse(localStorage.getItem('localNotifications') || '[]');
-      existingNotifications.push(localNotification);
-      localStorage.setItem('localNotifications', JSON.stringify(existingNotifications));
-      
-      return { success: true, id: localNotification.id, isLocal: true };
-    }
+    const auth = getAuth();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
 
-    incrementQuota('write');
-    const ref = await addDoc(collection(db, 'notifications'), {
-      recipientId,
-      senderId,
-      type,
-      title,
-      message,
-      data,
-      priority,
-      read: false,
-      deleted: false,
-      timestamp: serverTimestamp(),
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/createNotification`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(notifData)
     });
-    return { success: true, id: ref.id };
+
+    if (!response.ok) throw new Error('Failed to create notification');
+    return await response.json();
   } catch (error) {
     console.error('Error creating notification:', error);
     return { success: false, error: error.message };
@@ -120,7 +89,7 @@ const resetQuotaIfNeeded = () => {
 // Check if quota is exceeded
 const checkQuota = (operation) => {
   resetQuotaIfNeeded();
-  
+
   switch (operation) {
     case 'read':
       return quotaUsage.reads < QUOTA_LIMITS.DAILY_READS;
@@ -136,7 +105,7 @@ const checkQuota = (operation) => {
 // Increment quota usage
 const incrementQuota = (operation) => {
   resetQuotaIfNeeded();
-  
+
   switch (operation) {
     case 'read':
       quotaUsage.reads++;
@@ -197,19 +166,19 @@ export const subscribeToNotifications = (userId, callback) => {
 
   if (isTestUser) {
     console.log('🧪 Using test user - fetching notifications from backend');
-    
+
     // Fetch notifications from backend for test users
     const fetchNotifications = async () => {
       try {
         const auth = getAuth();
         const currentUser = auth.currentUser;
-        
+
         if (!currentUser) {
           console.log('No authenticated user for notifications');
           callback([]);
           return;
         }
-        
+
         let token;
         try {
           token = await currentUser.getIdToken();
@@ -217,19 +186,19 @@ export const subscribeToNotifications = (userId, callback) => {
           console.log('Firebase auth failed, using test token for notifications:', error.message);
           token = 'test-doctor-token'; // Fallback for production
         }
-        
-        const API_BASE = import.meta.env.VITE_API_BASE_URL
-          ? `${import.meta.env.VITE_API_BASE_URL}/api/patient-doctor`
-          : 'https://swasthyalink-backend-v2.onrender.com/api/patient-doctor';
-        
-        const response = await fetch(`${API_BASE}/doctor/notifications`, {
+
+        const REGION = 'us-central1';
+        const PROJECT_ID = 'swasthyalink-42535';
+        const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
+
+        const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getNotifications?userId=${currentUser.uid}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           console.log('✅ Notifications fetched from backend:', data);
@@ -243,7 +212,7 @@ export const subscribeToNotifications = (userId, callback) => {
         callback([]);
       }
     };
-    
+
     // Track last shown notification IDs to avoid repeat alerts
     const SHOWN_KEY = `shownNotificationIds_${userId}`;
     const getShown = () => new Set(JSON.parse(localStorage.getItem(SHOWN_KEY) || '[]'));
@@ -253,13 +222,13 @@ export const subscribeToNotifications = (userId, callback) => {
     const fetchAndRecord = async () => {
       await fetchNotifications();
     };
-    
+
     // Fetch immediately
     fetchAndRecord();
-    
+
     // Reduce polling frequency to lower noise
     const interval = setInterval(fetchAndRecord, 15000); // every 15s
-    
+
     return () => clearInterval(interval);
   }
 
@@ -270,9 +239,9 @@ export const subscribeToNotifications = (userId, callback) => {
     const localNotifications = JSON.parse(localStorage.getItem('localNotifications') || '[]')
       .filter(notif => notif.recipientId === userId && !notif.deleted)
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
+
     callback(localNotifications);
-    
+
     // Set up interval to check for new local notifications
     const interval = setInterval(() => {
       const updatedNotifications = JSON.parse(localStorage.getItem('localNotifications') || '[]')
@@ -280,7 +249,7 @@ export const subscribeToNotifications = (userId, callback) => {
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       callback(updatedNotifications);
     }, 15000); // every 15s
-    
+
     return () => clearInterval(interval);
   }
 
@@ -293,11 +262,11 @@ export const subscribeToNotifications = (userId, callback) => {
 
   const unsubscribe = onSnapshot(q, (snapshot) => {
     const notifs = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-    
+
     // Also include local notifications
     const localNotifications = JSON.parse(localStorage.getItem('localNotifications') || '[]')
       .filter(notif => notif.recipientId === userId && !notif.deleted);
-    
+
     // Merge and sort all notifications
     const allNotifications = [...notifs, ...localNotifications]
       .sort((a, b) => {
@@ -305,7 +274,7 @@ export const subscribeToNotifications = (userId, callback) => {
         const timeB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp);
         return timeB - timeA;
       });
-    
+
     callback(allNotifications);
   }, (error) => {
     console.error('subscribeToNotifications error:', error);
@@ -321,42 +290,21 @@ export const subscribeToNotifications = (userId, callback) => {
 
 // Mark notification as read
 export const markNotificationAsRead = async (notificationId) => {
-  // Check if this is a test user (mock authentication)
-  const isTestUser = localStorage.getItem('testUser') !== null;
-
-  if (isTestUser) {
-    console.log('🧪 Using test user - skipping Firestore operations for markNotificationAsRead');
-    return { success: true };
-  }
-
-  // Check if it's a local notification
-  if (notificationId.startsWith('local_')) {
-    try {
-      const localNotifications = JSON.parse(localStorage.getItem('localNotifications') || '[]');
-      const updatedNotifications = localNotifications.map(notif => 
-        notif.id === notificationId ? { ...notif, read: true, readAt: new Date() } : notif
-      );
-      localStorage.setItem('localNotifications', JSON.stringify(updatedNotifications));
-      return { success: true };
-    } catch (error) {
-      console.error('Error marking local notification as read:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Check quota before writing
-  if (!checkQuota('write')) {
-    console.warn('⚠️ Firebase write quota exceeded, using local storage fallback');
-    return { success: false, error: 'Quota exceeded' };
-  }
-
   try {
-    incrementQuota('write');
-    await updateDoc(doc(db, 'notifications', notificationId), {
-      read: true,
-      readAt: serverTimestamp()
+    const auth = getAuth();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/markNotificationRead`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ notificationId })
     });
-    return { success: true };
+
+    if (!response.ok) throw new Error('Failed to mark notification as read');
+    return await response.json();
   } catch (error) {
     console.error('Error marking notification as read:', error);
     return { success: false, error: error.message };
@@ -365,100 +313,67 @@ export const markNotificationAsRead = async (notificationId) => {
 
 // Mark all notifications as read for a user
 export const markAllNotificationsAsRead = async (userId) => {
-  // Check if this is a test user (mock authentication)
-  const isTestUser = localStorage.getItem('testUser') !== null;
-
-  if (isTestUser) {
-    console.log('🧪 Using test user - skipping Firestore operations for markAllNotificationsAsRead');
-    return { success: true };
-  }
-
   try {
-    const q = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', userId),
-      where('read', '==', false)
-    );
+    const auth = getAuth();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
 
-    const snapshot = await getDocs(q);
-    const batch = writeBatch(db);
-
-    snapshot.forEach((docSnapshot) => {
-      batch.update(docSnapshot.ref, {
-        read: true,
-        readAt: serverTimestamp()
-      });
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/markAllNotificationsRead`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ userId })
     });
 
-    await batch.commit();
-    return { success: true };
+    if (!response.ok) throw new Error('Failed to mark all notifications as read');
+    return await response.json();
   } catch (error) {
     console.error('Error marking all notifications as read:', error);
     return { success: false, error: error.message };
   }
 };
 
-// Delete notification
 export const deleteNotification = async (notificationId) => {
-  // Check if this is a test user (mock authentication)
-  const isTestUser = localStorage.getItem('testUser') !== null;
-
-  if (isTestUser) {
-    console.log('🧪 Using test user - skipping Firestore operations for deleteNotification');
-    return { success: true };
-  }
-
-  // Check if it's a local notification
-  if (notificationId.startsWith('local_')) {
-    try {
-      const localNotifications = JSON.parse(localStorage.getItem('localNotifications') || '[]');
-      const updatedNotifications = localNotifications.filter(notif => notif.id !== notificationId);
-      localStorage.setItem('localNotifications', JSON.stringify(updatedNotifications));
-      return { success: true };
-    } catch (error) {
-      console.error('Error deleting local notification:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Check quota before writing
-  if (!checkQuota('delete')) {
-    console.warn('⚠️ Firebase delete quota exceeded');
-    return { success: false, error: 'Delete quota exceeded' };
-  }
-
   try {
-    incrementQuota('delete');
-    await updateDoc(doc(db, 'notifications', notificationId), {
-      deleted: true,
-      deletedAt: serverTimestamp()
+    const auth = getAuth();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+    const userId = auth.currentUser ? auth.currentUser.uid : 'user';
+
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/deleteNotification`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ notificationId, userId })
     });
-    return { success: true };
+
+    if (!response.ok) throw new Error('Failed to delete notification');
+    return await response.json();
   } catch (error) {
     console.error('Error deleting notification:', error);
     return { success: false, error: error.message };
   }
 };
 
-// Get unread notification count
 export const getUnreadNotificationCount = async (userId) => {
-  // Check if this is a test user (mock authentication)
-  const isTestUser = localStorage.getItem('testUser') !== null;
-
-  if (isTestUser) {
-    console.log('🧪 Using test user - returning 0 unread notifications');
-    return { success: true, count: 0 };
-  }
-
   try {
-    const q = query(
-      collection(db, 'notifications'),
-      where('recipientId', '==', userId),
-      where('read', '==', false)
-    );
+    const auth = getAuth();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
 
-    const snapshot = await getDocs(q);
-    return { success: true, count: snapshot.size };
+    const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getNotifications?userId=${userId}&limit=1`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to get unread count');
+    const data = await response.json();
+    // Simplified: our CF returns notifications and total. Filter read in CF or just use this.
+    return { success: true, count: data.notifications?.filter(n => !n.read).length || 0 };
   } catch (error) {
     console.error('Error getting unread count:', error);
     return { success: false, error: error.message, count: 0 };
@@ -607,11 +522,11 @@ export const getNotificationColor = (priority) => {
 // Format notification time with detailed date and time
 export const formatNotificationTime = (timestamp) => {
   if (!timestamp) return 'Just now';
-  
+
   try {
     const now = new Date();
     let notificationTime;
-    
+
     if (timestamp instanceof Date) {
       notificationTime = timestamp;
     } else if (typeof timestamp === 'string' || typeof timestamp === 'number') {
@@ -622,22 +537,22 @@ export const formatNotificationTime = (timestamp) => {
     } else {
       return 'Just now';
     }
-    
+
     // Check if the date is valid
     if (isNaN(notificationTime.getTime())) {
       return 'Just now';
     }
-    
+
     const diffInMinutes = Math.floor((now - notificationTime) / (1000 * 60));
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInMinutes / 1440);
-    
+
     // For very recent notifications (less than 1 minute)
     if (diffInMinutes < 1) return 'Just now';
-    
+
     // For recent notifications (less than 1 hour)
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    
+
     // For today's notifications (less than 24 hours)
     if (diffInMinutes < 1440) {
       const timeString = notificationTime.toLocaleTimeString('en-US', {
@@ -647,7 +562,7 @@ export const formatNotificationTime = (timestamp) => {
       });
       return `Today at ${timeString}`;
     }
-    
+
     // For yesterday's notifications
     if (diffInDays === 1) {
       const timeString = notificationTime.toLocaleTimeString('en-US', {
@@ -657,7 +572,7 @@ export const formatNotificationTime = (timestamp) => {
       });
       return `Yesterday at ${timeString}`;
     }
-    
+
     // For older notifications (less than 7 days)
     if (diffInDays < 7) {
       const timeString = notificationTime.toLocaleTimeString('en-US', {
@@ -668,7 +583,7 @@ export const formatNotificationTime = (timestamp) => {
       const dayName = notificationTime.toLocaleDateString('en-US', { weekday: 'short' });
       return `${dayName} at ${timeString}`;
     }
-    
+
     // For very old notifications (more than 7 days)
     const dateString = notificationTime.toLocaleDateString('en-US', {
       month: 'short',

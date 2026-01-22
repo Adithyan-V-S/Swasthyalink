@@ -22,7 +22,10 @@ const PrescriptionModal = ({ patient, isOpen, onClose, onSuccess }) => {
 
   const loadTemplates = async () => {
     try {
-      const response = await fetch('/api/prescriptions/templates/common');
+      const REGION = 'us-central1';
+      const PROJECT_ID = 'swasthyalink-42535';
+      const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
+      const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getPrescriptionTemplates`);
       const result = await response.json();
       if (result.success) {
         setTemplates(result.templates);
@@ -39,7 +42,10 @@ const PrescriptionModal = ({ patient, isOpen, onClose, onSuccess }) => {
     }
 
     try {
-      const response = await fetch(`/api/prescriptions/drugs/search?query=${encodeURIComponent(query)}`);
+      const REGION = 'us-central1';
+      const PROJECT_ID = 'swasthyalink-42535';
+      const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
+      const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/searchDrugs?query=${encodeURIComponent(query)}`);
       const result = await response.json();
       if (result.success) {
         setDrugSuggestions(prev => ({ ...prev, [index]: result.drugs }));
@@ -60,7 +66,7 @@ const PrescriptionModal = ({ patient, isOpen, onClose, onSuccess }) => {
   };
 
   const updateMedication = (index, field, value) => {
-    const updated = medications.map((med, i) => 
+    const updated = medications.map((med, i) =>
       i === index ? { ...med, [field]: value } : med
     );
     setMedications(updated);
@@ -88,7 +94,7 @@ const PrescriptionModal = ({ patient, isOpen, onClose, onSuccess }) => {
 
     try {
       // Validate medications
-      const validMedications = medications.filter(med => 
+      const validMedications = medications.filter(med =>
         med.name.trim() && med.dosage.trim() && med.frequency.trim()
       );
 

@@ -12,6 +12,10 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const { setPresetAdmin } = useAuth();
 
+  const REGION = 'us-central1';
+  const PROJECT_ID = 'swasthyalink-42535';
+  const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
+
   const handleChange = (e) => {
     setCredentials({
       ...credentials,
@@ -25,7 +29,7 @@ const AdminLogin = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/admin/login', {
+      const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/adminLogin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

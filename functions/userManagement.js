@@ -66,6 +66,40 @@ const setCors = (res) => {
     res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 };
 
+/**
+ * Create or update user profile
+ */
+exports.createUser = onRequest(async (req, res) => {
+    setCors(res);
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+
+    try {
+        const { uid, email, name, role = 'patient', ...otherData } = req.body;
+
+        if (!uid || !email) {
+            return res.status(400).json({ success: false, error: 'UID and email are required' });
+        }
+
+        const userDoc = {
+            uid,
+            email,
+            name: name || email.split('@')[0],
+            role,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            ...otherData
+        };
+
+        const db = admin.firestore();
+        await db.collection('users').doc(uid).set(userDoc, { merge: true });
+
+        res.json({ success: true, user: userDoc });
+    } catch (error) {
+        console.error('createUser error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 exports.searchUsers = onRequest(async (req, res) => {
     setCors(res);
     if (req.method === 'OPTIONS') return res.status(204).send('');

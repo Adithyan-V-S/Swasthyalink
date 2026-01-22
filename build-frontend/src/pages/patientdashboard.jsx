@@ -10,6 +10,7 @@ import { onSnapshot, doc, getDoc } from "firebase/firestore";
 import { getPendingRequests, acceptRequest, getConnectedDoctors, resendRequest } from "../services/patientDoctorService";
 import { subscribeToPatientPrescriptions, formatDate, isTestUser } from "../utils/firebaseUtils";
 import { getPatientPrescriptions } from "../services/prescriptionService";
+import AIExerciseCoach from "../components/exercise/AIExerciseCoach";
 
 const records = [
   {
@@ -172,6 +173,11 @@ const PatientDashboard = () => {
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6h13M9 6l-7 7 7 7" /></svg>
       )
     },
+    {
+      label: "AI Coach", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+      )
+    },
   ];
 
   const helpSupportLink = {
@@ -296,18 +302,14 @@ const PatientDashboard = () => {
 
       console.log('🔍 About to make API call for family members...');
 
-      // Call the backend API to get real family members
-      const API_BASE = import.meta.env.VITE_API_BASE_URL
-        ? `${import.meta.env.VITE_API_BASE_URL}/api/family`
-        : 'https://swasthyalink-backend-v2.onrender.com/api/family';
+      // Call the backend Cloud Function to get real family members
+      const REGION = 'us-central1';
+      const PROJECT_ID = 'swasthyalink-42535';
+      const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
 
-      console.log('🌐 Making API call to:', `${API_BASE}/network?uid=${currentUser.uid}`);
+      console.log('🔍 Making Cloud Function call to:', `${CLOUD_FUNCTIONS_BASE}/getFamilyNetwork?uid=${currentUser.uid}`);
 
-      // Add timeout to prevent hanging requests
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-      const response = await fetch(`${API_BASE}/network?uid=${currentUser.uid}`, {
+      const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getFamilyNetwork?uid=${currentUser.uid}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -602,7 +604,10 @@ const PatientDashboard = () => {
   const handleMigrateFamilyConnections = async () => {
     try {
       console.log('🔄 Starting family connections migration...');
-      const response = await fetch('/api/family/migrate-connections', {
+      const REGION = 'us-central1';
+      const PROJECT_ID = 'swasthyalink-42535';
+      const CLOUD_FUNCTIONS_BASE = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net`;
+      const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/migrateFamilyConnections`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1417,6 +1422,8 @@ const PatientDashboard = () => {
         );
       case 8: // Game
         return <SnakeGame />;
+      case 9: // AI Coach
+        return <AIExerciseCoach />;
       default:
         return null;
     }
