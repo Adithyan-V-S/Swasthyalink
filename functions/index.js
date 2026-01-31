@@ -24,6 +24,11 @@ const logger = require("firebase-functions/logger");
 // this will be the maximum concurrent request count.
 setGlobalOptions({ maxInstances: 10 });
 
+const admin = require('firebase-admin');
+if (admin.apps.length === 0) {
+    admin.initializeApp();
+}
+
 const { analyzeReport } = require('./analyzeReport');
 const { geminiChat } = require('./geminiChat');
 const { chatbot } = require('./chatbot');
@@ -110,9 +115,7 @@ exports.sendOTP = otpFunctions.sendOTP;
 exports.verifyOTP = otpFunctions.verifyOTP;
 exports.resendOTP = otpFunctions.resendOTP;
 
-const admin = require('firebase-admin');
 
-admin.initializeApp();
 const db = admin.firestore();
 
 exports.onFamilyRequestCreate = onDocumentCreated('familyRequests/{requestId}', async (event) => {
