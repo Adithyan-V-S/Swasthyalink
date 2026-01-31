@@ -8,7 +8,7 @@
 
 ## 🌟 Overview
 
-Swasthyalink is a modern healthcare management system designed to digitize and streamline healthcare processes in India. The platform provides secure, accessible, and user-friendly interfaces for managing medical records, appointments, and family health information.
+Swasthyalink is a modern healthcare management system designed to digitize and streamline healthcare processes in India. The platform provides secure, accessible, and user-friendly interfaces for managing medical records, appointments, and family health information.(Serverless Architecture)
 
 ### Key Objectives
 - **Digital Health Records**: Centralized, secure storage of medical information
