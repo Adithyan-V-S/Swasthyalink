@@ -79,7 +79,7 @@ const Header = () => {
   }, [profileMenuOpen]);
 
   const handleMarkAsRead = (id) => {
-    setNotifications(notifications.map(n => 
+    setNotifications(notifications.map(n =>
       n.id === id ? { ...n, read: true } : n
     ));
   };
@@ -91,7 +91,7 @@ const Header = () => {
       // Hint to FamilyChat to auto-open this conversation
       try {
         localStorage.setItem('openConversationId', n.conversationId);
-      } catch {}
+      } catch { }
     }
     // Mark clicked notification as read
     if (!n.read) handleMarkAsRead(n.id);
@@ -128,7 +128,7 @@ const Header = () => {
   };
 
   console.log('🔍 Header rendering for user:', currentUser?.uid, 'isAuthenticated:', isAuthenticated);
-  
+
   return (
     <header className="sticky top-0 z-[60] bg-white border-b border-gray-200 shadow-sm">
       <nav className="w-full flex flex-wrap items-center justify-between py-2 px-6 min-h-[50px]">
@@ -140,11 +140,12 @@ const Header = () => {
               onClick={toggleSidebar}
               onMouseEnter={openSidebar}
               aria-label="Open sidebar menu"
-              style={{lineHeight: 0}}
+              style={{ lineHeight: 0 }}
             >
               <span className="material-icons text-blue-600 text-2xl leading-none">menu</span>
             </button>
           )}
+          <img src="/pwa-icon-512.png" alt="Swasthyalink Logo" className="h-8 w-8 object-contain rounded-full shadow-sm" />
           <span className="text-blue-600 drop-shadow-sm text-xl font-bold tracking-wide">Swasthyalink</span>
         </div>
         {/* Right section: notifications, profile menu, login/register */}
