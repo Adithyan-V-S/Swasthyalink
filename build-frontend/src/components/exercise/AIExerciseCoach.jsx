@@ -30,6 +30,7 @@ const AIExerciseCoach = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [exerciseType, setExerciseType] = useState('squat');
     const [isMuted, setIsMuted] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const lastSpokenRef = useRef("");
 
     // Speech Synthesis Helper
@@ -217,8 +218,12 @@ const AIExerciseCoach = () => {
         return () => cancelAnimationFrame(animationFrameId);
     }, [runDetection]);
 
+    const toggleFullscreen = () => {
+        setIsFullscreen(!isFullscreen);
+    };
+
     return (
-        <div className="flex flex-col items-center p-8 bg-[#0f172a] min-h-screen text-white">
+        <div className={`flex flex-col items-center p-8 bg-[#0f172a] text-white transition-all duration-300 ${isFullscreen ? 'fixed inset-0 z-[100] h-screen w-screen overflow-y-auto' : 'min-h-screen relative'}`}>
             {/* Header Section */}
             <div className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
                 <div className="flex items-center gap-4">
@@ -240,21 +245,37 @@ const AIExerciseCoach = () => {
                             {count.toString().padStart(2, '0')}
                         </div>
                     </div>
-                    <button
-                        onClick={() => setIsMuted(!isMuted)}
-                        className={`p-4 rounded-2xl transition-all ${isMuted ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}
-                    >
-                        {isMuted ? (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
-                        ) : (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
-                        )}
-                    </button>
+
+                    <div className="flex gap-2">
+                        <button
+                            onClick={toggleFullscreen}
+                            className="p-4 rounded-2xl bg-slate-800 text-gray-300 hover:bg-slate-700 transition-all font-medium flex items-center gap-2"
+                            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                        >
+                            {isFullscreen ? (
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 14h6m-6 0v6m0-6l5-5m5 5l5-5m0 5v6m0-6h6m-6 0l5-5" /></svg>
+                            ) : (
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={() => setIsMuted(!isMuted)}
+                            className={`p-4 rounded-2xl transition-all ${isMuted ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}
+                            title={isMuted ? "Unmute Coach" : "Mute Coach"}
+                        >
+                            {isMuted ? (
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                            ) : (
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {/* Main Grid Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-7xl">
+            <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-2 h-full' : 'lg:grid-cols-2'} gap-8 w-full max-w-7xl flex-1`}>
 
                 {/* Left Column: Reference / Demo */}
                 <div className="flex flex-col gap-4">
@@ -263,7 +284,7 @@ const AIExerciseCoach = () => {
                             <span className="text-sm font-bold uppercase tracking-widest text-indigo-400">Reference Form</span>
                             <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase">Target: Perfect</span>
                         </div>
-                        <div className="aspect-video relative bg-black flex items-center justify-center">
+                        <div className={`aspect-video relative bg-black flex items-center justify-center ${isFullscreen ? 'h-[40vh]' : ''}`}>
                             <img
                                 src={EXERCISE_DATA[exerciseType].demoUrl}
                                 alt={EXERCISE_DATA[exerciseType].name}
@@ -281,15 +302,15 @@ const AIExerciseCoach = () => {
 
                 {/* Right Column: Live Analysis */}
                 <div className="flex flex-col gap-4">
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl relative">
-                        <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex justify-between items-center">
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl relative flex-1 flex flex-col">
+                        <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex justify-between items-center shrink-0">
                             <span className="text-sm font-bold uppercase tracking-widest text-green-400">Live Feedback</span>
                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                 <span className="text-xs font-bold uppercase text-gray-400">AI Tracking Active</span>
                             </div>
                         </div>
-                        <div className="aspect-video relative bg-black">
+                        <div className={`relative bg-black flex-1 w-full ${isFullscreen ? 'h-full min-h-[50vh]' : 'aspect-video'}`}>
                             {isLoading && (
                                 <div className="absolute inset-0 flex items-center justify-center z-30 bg-slate-900 bg-opacity-95">
                                     <div className="flex flex-col items-center">
@@ -326,7 +347,7 @@ const AIExerciseCoach = () => {
                     </div>
 
                     {/* Controls Bar */}
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 shrink-0">
                         <select
                             value={exerciseType}
                             onChange={(e) => {
