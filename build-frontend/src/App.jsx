@@ -12,6 +12,7 @@ import PrivateRoute from './components/PrivateRoute';
 import PublicRoute from './components/PublicRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import NotificationToast from './components/NotificationToast';
+import VoiceNavigation from './components/VoiceNavigation';
 import { AuthProvider } from './contexts/AuthContext';
 
 // Pages
@@ -65,6 +66,7 @@ function AppContent() {
       {!hideHeaderFooterOn.includes(location.pathname) && <Footer />}
       {/* <Chatbot /> */}
       <GeminiChatbot />
+      <VoiceNavigation />
       <NotificationToast />
     </ErrorBoundary>
   );
