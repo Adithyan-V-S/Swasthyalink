@@ -19,7 +19,8 @@ const AdminDashboard = () => {
     password: "",
     specialization: "",
     license: "",
-    phone: ""
+    phone: "",
+    department: "" // Added for nurse
   });
   const [editingItem, setEditingItem] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -135,7 +136,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     const presetAdmin = localStorage.getItem('presetAdmin') === 'true';
-    
+
     if (presetAdmin) {
       console.log("Preset admin detected, setting up admin session");
 
@@ -352,17 +353,14 @@ const AdminDashboard = () => {
   const generateCredentials = () => {
     const timestamp = Date.now();
     const randomNum = Math.floor(Math.random() * 1000);
-    const doctorId = `DOC_${timestamp}_${randomNum}`;
-    const autoEmail = `doctor${timestamp}@swasthyalink.com`;
-    const autoPassword = `Doc${timestamp.toString().slice(-6)}!`;
+    const prefix = activeTab === "staff" ? "NURSE" : "DOC";
+    const passPrefix = activeTab === "staff" ? "Nurse" : "Doc";
 
-    console.log("🔧 Generated credentials:", {
-      timestamp,
-      doctorId,
-      autoEmail,
-      autoPassword,
-      timestampSlice: timestamp.toString().slice(-6)
-    });
+    const id = `${prefix}_${timestamp}_${randomNum}`;
+    const autoEmail = `${activeTab === "staff" ? "nurse" : "doctor"}${timestamp}@swasthyalink.com`;
+    const autoPassword = `${passPrefix}${timestamp.toString().slice(-6)}!`;
+
+    console.log("🔧 Generated credentials:", { id, autoEmail, autoPassword });
 
     setFormData({
       ...formData,
@@ -370,7 +368,7 @@ const AdminDashboard = () => {
       password: autoPassword
     });
 
-    return { doctorId, autoEmail, autoPassword };
+    return { id, autoEmail, autoPassword };
   };
 
   const handleAddDoctor = async (e) => {
@@ -448,13 +446,13 @@ const AdminDashboard = () => {
         console.log('Creating Firebase Auth account for doctor:', email);
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const firebaseUser = userCredential.user;
-        
+
         console.log('✅ Firebase Auth user created:', firebaseUser.uid);
-        
+
         // Update the doctor object with Firebase UID
         newDoctor.uid = firebaseUser.uid;
         newDoctor.firebaseUid = firebaseUser.uid;
-        
+
         // Update localStorage with Firebase UID
         const updatedDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
         const doctorIndex = updatedDoctors.findIndex(doc => doc.id === newDoctor.id);
@@ -462,7 +460,7 @@ const AdminDashboard = () => {
           updatedDoctors[doctorIndex] = newDoctor;
           localStorage.setItem('mockDoctors', JSON.stringify(updatedDoctors));
         }
-        
+
         // Create user document in Firestore
         const userData = {
           uid: firebaseUser.uid,
@@ -479,16 +477,16 @@ const AdminDashboard = () => {
           updatedAt: new Date().toISOString(),
           emailVerified: true
         };
-        
+
         const docRef = doc(db, "users", firebaseUser.uid);
         await setDoc(docRef, userData);
         console.log('✅ Doctor document created in Firestore');
-        
+
         console.log('✅ Doctor added successfully to both Firebase and localStorage');
-        
+
       } catch (firebaseError) {
         console.error('Firebase error:', firebaseError);
-        
+
         if (firebaseError.code === 'auth/email-already-in-use') {
           console.log('Doctor email already exists in Firebase, continuing with localStorage only');
         } else {
@@ -646,8 +644,8 @@ const AdminDashboard = () => {
       await navigator.clipboard.writeText(text);
       // Show a brief success message
       const message = type === 'email' ? 'Email copied!' :
-                     type === 'password' ? 'Password copied!' :
-                     type === 'credentials' ? 'Credentials copied!' : 'Copied!';
+        type === 'password' ? 'Password copied!' :
+          type === 'credentials' ? 'Credentials copied!' : 'Copied!';
 
       // Create a temporary toast notification
       const toast = document.createElement('div');
@@ -711,7 +709,7 @@ const AdminDashboard = () => {
         role: formData.specialization, // Using specialization field for staff role
         createdAt: new Date().toISOString()
       };
-      
+
       await addDoc(collection(db, "staff"), newStaff);
       setFormData({
         name: "",
@@ -728,30 +726,202 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleAddPharmacyItem = async (e) => {
+  const handleAddNurse = async (e) => {
     e.preventDefault();
+
+    if (!formData.name || !formData.email || !formData.phone || !formData.password) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
     try {
-      const newItem = {
-        name: formData.name,
-        quantity: parseInt(formData.specialization), // Using specialization field for quantity
-        price: parseFloat(formData.license), // Using license field for price
-        category: formData.phone, // Using phone field for category
-        createdAt: new Date().toISOString()
+      setLoading(true);
+      const email = formData.email.trim().toLowerCase();
+      const password = formData.password;
+
+      // Create Firebase Auth account
+      console.log('🚀 Attempting to create nurse account in Firebase Auth:', { email, passwordLength: password.length });
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      const nurseData = {
+        uid: firebaseUser.uid,
+        name: formData.name.trim(),
+        email: email,
+        role: 'nurse',
+        department: formData.department || 'General',
+        phone: formData.phone.trim(),
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
-      
-      await addDoc(collection(db, "pharmacy"), newItem);
+
+      await setDoc(doc(db, "users", firebaseUser.uid), nurseData);
+
+      // Also add to staff collection if needed by current logic
+      await addDoc(collection(db, "staff"), {
+        ...nurseData,
+        nurseId: firebaseUser.uid
+      });
+
+      alert(`Nurse added successfully!\nEmail: ${email}`);
+
       setFormData({
         name: "",
         email: "",
         password: "",
         specialization: "",
         license: "",
-        phone: ""
+        phone: "",
+        department: ""
       });
       setShowAddForm(false);
       fetchData();
     } catch (error) {
-      console.error("Error adding pharmacy item:", error);
+      console.error("Error adding nurse:", error);
+      alert(`Error adding nurse: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditStaff = (member) => {
+    setEditingItem(member);
+    setIsEditing(true);
+    setFormData({
+      name: member.name || "",
+      email: member.email || "",
+      password: member.password || member.generatedPassword || "",
+      specialization: member.role || "",
+      license: member.license || "",
+      phone: member.phone || "",
+      department: member.department || ""
+    });
+    setShowAddForm(true);
+    setActiveTab("staff");
+  };
+
+  const handleUpdateNurse = async (e) => {
+    e.preventDefault();
+    if (!editingItem) return;
+
+    try {
+      setLoading(true);
+      const updateData = {
+        name: formData.name.trim(),
+        department: formData.department || 'General',
+        phone: formData.phone.trim(),
+        updatedAt: new Date().toISOString()
+      };
+
+      if (storageMode === 'firestore') {
+        const userUid = editingItem.uid || editingItem.nurseId;
+        console.log("Updating nurse in Firestore. User UID:", userUid, "Staff ID:", editingItem.id);
+
+        let userDocRef = null;
+        if (userUid) {
+          userDocRef = doc(db, "users", userUid);
+        } else {
+          // Fallback: Try to find user by email if UID is missing
+          console.warn("Nurse UID missing, searching users collection by email...");
+          const usersRef = collection(db, "users");
+          const q = query(usersRef, where("email", "==", editingItem.email));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            userDocRef = doc(db, "users", querySnapshot.docs[0].id);
+            console.log("Found user by email. New doc ID:", querySnapshot.docs[0].id);
+          }
+        }
+
+        if (userDocRef) {
+          try {
+            await updateDoc(userDocRef, updateData);
+            console.log("Successfully updated users collection");
+          } catch (err) {
+            console.error("Failed to update users collection:", err);
+            // Don't throw yet, try to update staff record
+          }
+        }
+
+        // Update the staff document itself
+        await updateDoc(doc(db, "staff", editingItem.id), updateData);
+        console.log("Successfully updated staff collection");
+      } else {
+        const mockStaff = JSON.parse(localStorage.getItem('mockStaff') || '[]');
+        const updatedStaff = mockStaff.map(s => (s.id === editingItem.id) ? { ...s, ...updateData } : s);
+        localStorage.setItem('mockStaff', JSON.stringify(updatedStaff));
+      }
+
+      alert('Nurse Staff updated successfully!');
+      setShowAddForm(false);
+      setIsEditing(false);
+      setEditingItem(null);
+      resetForm();
+      fetchData();
+    } catch (error) {
+      console.error("Error updating nurse:", error);
+      alert(`Error updating nurse: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      email: "",
+      password: "",
+      specialization: "",
+      license: "",
+      phone: "",
+      department: ""
+    });
+  };
+
+  const handleDeleteStaff = async (member) => {
+    if (!window.confirm(`Are you sure you want to remove access for ${member.name}?`)) return;
+
+    try {
+      setLoading(true);
+      const updateData = {
+        status: 'disabled',
+        updatedAt: new Date().toISOString()
+      };
+
+      if (storageMode === 'firestore') {
+        const userUid = member.uid || member.nurseId;
+        console.log("Disabling nurse. User UID:", userUid, "Staff ID:", member.id);
+
+        let userDocRef = null;
+        if (userUid) {
+          userDocRef = doc(db, "users", userUid);
+        } else {
+          // Fallback: Try to find user by email
+          const q = query(collection(db, "users"), where("email", "==", member.email));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            userDocRef = doc(db, "users", querySnapshot.docs[0].id);
+          }
+        }
+
+        if (userDocRef) {
+          await updateDoc(userDocRef, updateData);
+        }
+        // Update the staff record too
+        await updateDoc(doc(db, "staff", member.id), updateData);
+      } else {
+        const mockStaff = JSON.parse(localStorage.getItem('mockStaff') || '[]');
+        const updatedStaff = mockStaff.map(s => s.id === member.id ? { ...s, ...updateData } : s);
+        localStorage.setItem('mockStaff', JSON.stringify(updatedStaff));
+      }
+
+      alert('Access removed successfully.');
+      fetchData();
+    } catch (error) {
+      console.error("Error disabling nurse:", error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -763,7 +933,11 @@ const AdminDashboard = () => {
         handleAddDoctor(e);
       }
     } else if (activeTab === "staff") {
-      handleAddStaff(e);
+      if (isEditing) {
+        handleUpdateNurse(e);
+      } else {
+        handleAddNurse(e);
+      }
     } else if (activeTab === "pharmacy") {
       handleAddPharmacyItem(e);
     }
@@ -849,11 +1023,10 @@ const AdminDashboard = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center space-x-3 px-6 py-3 text-left transition-colors ${
-                  activeTab === tab.id
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-300 hover:bg-gray-700"
-                }`}
+                className={`w-full flex items-center space-x-3 px-6 py-3 text-left transition-colors ${activeTab === tab.id
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-300 hover:bg-gray-700"
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
@@ -969,11 +1142,10 @@ const AdminDashboard = () => {
                     { action: "Staff member added", time: "2 hours ago", type: "staff" }
                   ].map((activity, index) => (
                     <div key={index} className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg">
-                      <div className={`w-2 h-2 rounded-full ${
-                        activity.type === 'patient' ? 'bg-blue-500' :
+                      <div className={`w-2 h-2 rounded-full ${activity.type === 'patient' ? 'bg-blue-500' :
                         activity.type === 'appointment' ? 'bg-green-500' :
-                        activity.type === 'pharmacy' ? 'bg-purple-500' : 'bg-orange-500'
-                      }`}></div>
+                          activity.type === 'pharmacy' ? 'bg-purple-500' : 'bg-orange-500'
+                        }`}></div>
                       <div className="flex-1">
                         <p className="text-white font-medium">{activity.action}</p>
                         <p className="text-gray-400 text-sm">{activity.time}</p>
@@ -992,18 +1164,22 @@ const AdminDashboard = () => {
                 <h2 className="text-2xl font-bold text-white capitalize">
                   {activeTab === "users" && "Manage Users"}
                   {activeTab === "doctors" && "Manage Doctors"}
-                  {activeTab === "staff" && "Manage Staff"}
+                  {activeTab === "staff" && "Manage Nurse Staff"}
                   {activeTab === "pharmacy" && "Manage Pharmacy"}
                 </h2>
                 {activeTab !== "users" && (
                   <button
-                    onClick={() => setShowAddForm(true)}
+                    onClick={() => {
+                      resetForm();
+                      setIsEditing(false);
+                      setShowAddForm(true);
+                    }}
                     className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
-                    <span>Add {activeTab.slice(0, -1)}</span>
+                    <span>Add {activeTab === "staff" ? "Nurse Staff" : activeTab.slice(0, -1)}</span>
                   </button>
                 )}
                 {activeTab === "users" && (
@@ -1069,20 +1245,18 @@ const AdminDashboard = () => {
                             {user.email}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              user.role === 'admin' ? 'bg-red-100 text-red-800' :
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.role === 'admin' ? 'bg-red-100 text-red-800' :
                               user.role === 'doctor' ? 'bg-blue-100 text-blue-800' :
-                              user.role === 'patient' ? 'bg-green-100 text-green-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
+                                user.role === 'patient' ? 'bg-green-100 text-green-800' :
+                                  'bg-gray-100 text-gray-800'
+                              }`}>
                               {user.role || 'patient'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              user.authMethod === 'Google' ? 'bg-blue-100 text-blue-800' :
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.authMethod === 'Google' ? 'bg-blue-100 text-blue-800' :
                               'bg-gray-100 text-gray-800'
-                            }`}>
+                              }`}>
                               {user.authMethod}
                             </span>
                           </td>
@@ -1176,27 +1350,23 @@ const AdminDashboard = () => {
                           </td>
                         </tr>
                       ))}
-                      {activeTab === "staff" && staff.map((member) => (
+                      {activeTab === "staff" && staff.filter(m => m.status !== 'disabled').map((member) => (
                         <tr key={member.id} className="hover:bg-gray-700">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{member.name}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.email}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.role}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.department || member.role}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.phone}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-3">
                               <button
-                                onClick={() => console.log('Edit staff member:', member)}
-                                className="text-gray-400 cursor-not-allowed transition-colors"
-                                disabled
-                                title="Edit functionality coming soon"
+                                onClick={() => handleEditStaff(member)}
+                                className="text-blue-400 hover:text-blue-300 transition-colors"
                               >
                                 Edit
                               </button>
                               <button
-                                onClick={() => handleDeleteDoctor(member.id)}
-                                className="text-gray-400 cursor-not-allowed transition-colors"
-                                disabled
-                                title="Delete functionality coming soon"
+                                onClick={() => handleDeleteStaff(member)}
+                                className="text-red-400 hover:text-red-300 transition-colors"
                               >
                                 Delete
                               </button>
@@ -1247,7 +1417,7 @@ const AdminDashboard = () => {
           <div className="relative top-20 mx-auto p-8 border w-96 shadow-2xl rounded-xl bg-gray-800 border-gray-700">
             <div className="mt-3">
               <h3 className="text-xl font-bold text-white mb-6">
-                {isEditing ? `Edit ${activeTab.slice(0, -1)}` : `Add ${activeTab.slice(0, -1)}`}
+                {isEditing ? `Edit ${activeTab === 'staff' ? 'Nurse Staff' : activeTab.slice(0, -1)}` : `Add ${activeTab === 'staff' ? 'Nurse Staff' : activeTab.slice(0, -1)}`}
               </h3>
               <form onSubmit={handleFormSubmit} className="space-y-6">
                 <div>
@@ -1255,7 +1425,7 @@ const AdminDashboard = () => {
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
@@ -1266,11 +1436,11 @@ const AdminDashboard = () => {
                     <input
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Enter email or auto-generate"
                     />
-                    {activeTab === "doctors" && !isEditing && (
+                    {(activeTab === "doctors" || activeTab === "staff") && !isEditing && (
                       <button
                         type="button"
                         onClick={generateCredentials}
@@ -1287,7 +1457,7 @@ const AdminDashboard = () => {
                     <input
                       type="text"
                       value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Enter password or auto-generate"
                     />
@@ -1300,7 +1470,7 @@ const AdminDashboard = () => {
                       <input
                         type="text"
                         value={formData.specialization}
-                        onChange={(e) => setFormData({...formData, specialization: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
                         className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         required
                       />
@@ -1310,7 +1480,7 @@ const AdminDashboard = () => {
                       <input
                         type="text"
                         value={formData.license}
-                        onChange={(e) => setFormData({...formData, license: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, license: e.target.value })}
                         className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         required
                       />
@@ -1318,17 +1488,35 @@ const AdminDashboard = () => {
                   </>
                 )}
                 {activeTab === "staff" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
-                    <input
-                      type="text"
-                      value={formData.specialization}
-                      onChange={(e) => setFormData({...formData, specialization: e.target.value})}
-                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="e.g., Nurse, Receptionist"
-                      required
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                      <input
+                        type="text"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder={isEditing ? "Leave blank to keep current password" : "Create password for nurse"}
+                        required={!isEditing}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Department</label>
+                      <select
+                        value={formData.department}
+                        onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      >
+                        <option value="">Select Department</option>
+                        <option value="Emergency">Emergency</option>
+                        <option value="ICU">ICU</option>
+                        <option value="OPD">OPD</option>
+                        <option value="Surgery">Surgery</option>
+                        <option value="General">General</option>
+                      </select>
+                    </div>
+                  </>
                 )}
                 {activeTab === "pharmacy" && (
                   <>
@@ -1337,7 +1525,7 @@ const AdminDashboard = () => {
                       <input
                         type="number"
                         value={formData.specialization}
-                        onChange={(e) => setFormData({...formData, specialization: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
                         className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         required
                       />
@@ -1348,7 +1536,7 @@ const AdminDashboard = () => {
                         type="number"
                         step="0.01"
                         value={formData.license}
-                        onChange={(e) => setFormData({...formData, license: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, license: e.target.value })}
                         className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         required
                       />
@@ -1358,7 +1546,7 @@ const AdminDashboard = () => {
                       <input
                         type="text"
                         value={formData.phone}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="e.g., Antibiotics, Painkillers"
                         required
@@ -1371,7 +1559,7 @@ const AdminDashboard = () => {
                   <input
                     type="tel"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
@@ -1389,7 +1577,8 @@ const AdminDashboard = () => {
                         password: "",
                         specialization: "",
                         license: "",
-                        phone: ""
+                        phone: "",
+                        department: ""
                       });
                     }}
                     className="bg-gray-600 text-gray-300 px-6 py-3 rounded-lg hover:bg-gray-500 transition-colors"

@@ -219,7 +219,7 @@ const SmartReportAnalyzer = () => {
                 </div>
             ) : (
                 <div className="bg-white rounded-[32px] shadow-2xl shadow-indigo-100/50 overflow-hidden border border-indigo-50 print:shadow-none print:border-none">
-                    <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-700 px-10 py-10 text-white print:bg-white print:text-indigo-600 print:p-0">
+                    <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-700 px-10 py-10 text-white print:hidden">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div>
                                 <h1 className="text-3xl sm:text-4xl font-black flex items-center gap-4">
@@ -233,14 +233,38 @@ const SmartReportAnalyzer = () => {
                         </div>
                     </div>
 
+                    {/* Print Only Header */}
+                    <div className="hidden print:block p-8 border-b-2 border-indigo-600 mb-8">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h1 className="text-3xl font-black text-indigo-600 uppercase tracking-tighter italic">Swasthyalink</h1>
+                                <p className="text-gray-500 font-bold">Smart Digital Health Report</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm font-black text-gray-800 uppercase tracking-widest">Medical Analysis</p>
+                                <p className="text-gray-500 font-medium">{new Date().toLocaleDateString()} • {new Date().toLocaleTimeString()}</p>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex gap-12 text-sm">
+                            <div>
+                                <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Patient Name</p>
+                                <p className="font-black text-gray-800">{currentUser?.displayName || 'Valued User'}</p>
+                            </div>
+                            <div>
+                                <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Report Type</p>
+                                <p className="font-black text-gray-800">Laboratory Data Analysis</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="p-10">
                         {/* Upload/Camera Section */}
                         <div className="mb-8 print:hidden">
                             {!imagePreview && !showCamera ? (
                                 <div className="space-y-6">
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                        {/* Drop Zone */}
-                                        <div className="lg:col-span-2 border-2 border-dashed border-indigo-100 rounded-[24px] py-16 px-10 text-center hover:bg-indigo-50/50 transition-all cursor-pointer relative group bg-gray-50/30">
+                                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                                        {/* Drop Zone & Unified Browse */}
+                                        <div className="lg:col-span-3 border-2 border-dashed border-indigo-100 rounded-[24px] py-16 px-10 text-center hover:bg-indigo-50/50 transition-all cursor-pointer relative group bg-gray-50/30">
                                             <input
                                                 type="file"
                                                 accept="image/*"
@@ -252,26 +276,20 @@ const SmartReportAnalyzer = () => {
                                                     <span className="material-icons text-5xl">cloud_upload</span>
                                                 </div>
                                             </div>
-                                            <h3 className="text-2xl font-black text-gray-800 mb-2">Drag & Drop Report</h3>
-                                            <p className="text-gray-500 font-medium">Click or drag a photo here to start</p>
+                                            <h3 className="text-2xl font-black text-gray-800 mb-2">Drag & Drop or Click</h3>
+                                            <p className="text-gray-500 font-medium">Select a lab report photo to analyze</p>
                                         </div>
 
-                                        {/* Quick Actions */}
-                                        <div className="grid grid-cols-1 gap-4">
-                                            <button
-                                                onClick={() => setShowCamera(true)}
-                                                className="flex flex-col items-center justify-center gap-3 p-6 bg-white border-2 border-indigo-100 text-indigo-600 rounded-[24px] font-black hover:bg-indigo-50 transition-all hover:border-indigo-200 group shadow-sm hover:shadow-md"
-                                            >
+                                        {/* Camera Action */}
+                                        <button
+                                            onClick={() => setShowCamera(true)}
+                                            className="flex flex-col items-center justify-center gap-4 p-6 bg-white border-2 border-indigo-100 text-indigo-600 rounded-[24px] font-black hover:bg-indigo-50 transition-all hover:border-indigo-200 group shadow-sm hover:shadow-md"
+                                        >
+                                            <div className="p-4 bg-indigo-50 rounded-full group-hover:bg-indigo-100 transition-colors">
                                                 <span className="material-icons text-4xl group-hover:scale-110 transition-transform">photo_camera</span>
-                                                Take a Photo
-                                            </button>
-
-                                            <label className="flex flex-col items-center justify-center gap-3 p-6 bg-indigo-600 text-white rounded-[24px] font-black hover:bg-indigo-700 cursor-pointer transition-all shadow-lg hover:shadow-indigo-200 group">
-                                                <span className="material-icons text-4xl group-hover:scale-110 transition-transform">file_upload</span>
-                                                Browse Files
-                                                <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
-                                            </label>
-                                        </div>
+                                            </div>
+                                            <span className="text-lg">Take a Photo</span>
+                                        </button>
                                     </div>
 
                                     {/* Samples Section */}
@@ -391,23 +409,24 @@ const SmartReportAnalyzer = () => {
                                     </div>
                                     <button
                                         onClick={handlePrint}
-                                        className="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition-all"
+                                        className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95"
                                     >
-                                        <span className="material-icons">print</span>
+                                        <span className="material-icons">download</span>
+                                        Download PDF Report
                                     </button>
                                 </div>
 
-                                <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-[32px] p-10 shadow-2xl shadow-indigo-200 relative overflow-hidden text-white">
-                                    <div className="absolute top-0 right-0 opacity-10 transform translate-x-1/4 -translate-y-1/4">
+                                <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-[32px] p-10 shadow-2xl shadow-indigo-200 relative overflow-hidden text-white print:bg-indigo-50 print:text-indigo-900 print:shadow-none print:border print:border-indigo-100">
+                                    <div className="absolute top-0 right-0 opacity-10 transform translate-x-1/4 -translate-y-1/4 print:hidden">
                                         <span className="material-icons text-[250px]">psychology</span>
                                     </div>
-                                    <h3 className="text-3xl font-black mb-6 flex items-center gap-3 relative">
-                                        <div className="p-2 bg-white/20 backdrop-blur-md rounded-lg">
-                                            <span className="material-icons text-3xl">summarize</span>
+                                    <h3 className="text-3xl font-black mb-6 flex items-center gap-3 relative print:text-indigo-600">
+                                        <div className="p-2 bg-white/20 backdrop-blur-md rounded-lg print:bg-indigo-100">
+                                            <span className="material-icons text-3xl print:text-indigo-600">summarize</span>
                                         </div>
                                         Executive AI Summary
                                     </h3>
-                                    <p className="text-2xl leading-relaxed font-medium relative italic text-indigo-50">
+                                    <p className="text-2xl leading-relaxed font-medium relative italic text-indigo-50 print:text-indigo-900 print:text-lg">
                                         "{analysis.summary}"
                                     </p>
                                 </div>
@@ -488,8 +507,19 @@ const SmartReportAnalyzer = () => {
 
             <style jsx>{`
                 @media print {
-                    @page { margin: 20mm; }
-                    body { -webkit-print-color-adjust: exact; }
+                    @page { 
+                        margin: 15mm; 
+                        size: A4;
+                    }
+                    body { 
+                        -webkit-print-color-adjust: exact;
+                        background: white !important;
+                    }
+                    .bg-white { background: white !important; }
+                    .rounded-\[32px\] { border-radius: 12px !important; }
+                    table { border: 1px solid #e5e7eb !important; }
+                    th { background-color: #f9fafb !important; color: #374151 !important; border-bottom: 2px solid #e5e7eb !important; }
+                    td { border-bottom: 1px solid #f3f4f6 !important; }
                 }
                 .animate-shake {
                     animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;

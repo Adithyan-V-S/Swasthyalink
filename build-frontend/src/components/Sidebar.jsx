@@ -21,6 +21,10 @@ const Sidebar = ({ open, onClose }) => {
         { to: "/doctordashboard", label: "Doctor Dashboard" },
         { to: "/settings", label: "Settings" },
       ],
+      nurse: [
+        { to: "/nursedashboard", label: "Nurse Dashboard" },
+        { to: "/settings", label: "Settings" },
+      ],
       patient: [
         { to: "/patientdashboard", label: "Patient Dashboard" },
         { to: "/healthanalytics", label: "Health Analytics" },

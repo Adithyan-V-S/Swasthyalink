@@ -2,9 +2,16 @@
 export const NOTIFICATION_TYPES = {
   CHAT_MESSAGE: 'chat_message',
   FAMILY_REQUEST: 'family_request',
+  FAMILY_REQUEST_ACCEPTED: 'family_request_accepted',
+  FAMILY_REQUEST_REJECTED: 'family_request_rejected',
   EMERGENCY_ALERT: 'emergency_alert',
   HEALTH_RECORD: 'health_record',
-  APPOINTMENT: 'appointment'
+  HEALTH_RECORD_SHARED: 'health_record_shared',
+  APPOINTMENT: 'appointment',
+  APPOINTMENT_REMINDER: 'appointment_reminder',
+  MEDICATION_REMINDER: 'medication_reminder',
+  SYSTEM_ALERT: 'system_alert',
+  DOCTOR_CONNECTION_REQUEST: 'doctor_connection_request'
 };
 
 // Mock notifications data
@@ -14,7 +21,7 @@ const mockNotifications = [
     type: NOTIFICATION_TYPES.CHAT_MESSAGE,
     title: 'New Message',
     message: 'Adithyan V.s sent you a message: "Hey! How are you doing?"',
-    recipientId: 'test-user-123',
+    recipientId: 'current-user-id',
     senderId: 'adithyan-user-id',
     senderName: 'Adithyan V.s',
     read: false,
@@ -30,7 +37,7 @@ const mockNotifications = [
     type: NOTIFICATION_TYPES.CHAT_MESSAGE,
     title: 'New Message',
     message: 'Adithyan V.s sent you a message: "Are you free for a call?"',
-    recipientId: 'test-user-123',
+    recipientId: 'current-user-id',
     senderId: 'adithyan-user-id',
     senderName: 'Adithyan V.s',
     read: false,
@@ -46,7 +53,7 @@ const mockNotifications = [
     type: NOTIFICATION_TYPES.FAMILY_REQUEST,
     title: 'Family Request',
     message: 'John Doe wants to join your family network as your son',
-    recipientId: 'test-user-123',
+    recipientId: 'current-user-id',
     senderId: 'john-user-id',
     senderName: 'John Doe',
     read: false,
@@ -61,7 +68,7 @@ const mockNotifications = [
     type: NOTIFICATION_TYPES.EMERGENCY_ALERT,
     title: 'Emergency Alert',
     message: 'Emergency contact Sarah needs immediate assistance!',
-    recipientId: 'test-user-123',
+    recipientId: 'current-user-id',
     senderId: 'sarah-user-id',
     senderName: 'Sarah Emergency Contact',
     read: false,
@@ -77,7 +84,7 @@ const mockNotifications = [
     type: NOTIFICATION_TYPES.HEALTH_RECORD,
     title: 'Health Record Shared',
     message: 'Dr. Smith shared your lab results',
-    recipientId: 'test-user-123',
+    recipientId: 'current-user-id',
     senderId: 'dr-smith-id',
     senderName: 'Dr. Smith',
     read: true,
@@ -165,34 +172,51 @@ const mockMessages = [
   }
 ];
 
+// Keep track of active subscriptions
+let subscribers = [];
+
+// Helper to notify all subscribers when data changes
+const notifySubscribers = () => {
+  subscribers.forEach(({ userId, callback }) => {
+    // In a real app, this would be a filtered Firestore query
+    const userNotifications = mockNotifications.filter(n =>
+      n.recipientId === userId || n.recipientId === 'current-user-id'
+    );
+    callback([...userNotifications]);
+  });
+};
+
 // Mock subscription function for notifications
 export const subscribeToNotifications = (userId, callback) => {
-  console.log('📬 Mock: Subscribing to notifications for user:', userId);
-  
-  // Filter notifications for the user
-  const userNotifications = mockNotifications.filter(n => n.recipientId === userId);
-  
-  // Simulate real-time updates
+  // Add to active subscribers
+  const sub = { userId, callback };
+  subscribers.push(sub);
+
+  // Initial load
+  const userNotifications = mockNotifications.filter(n =>
+    n.recipientId === userId || n.recipientId === 'current-user-id'
+  );
+
+  // Simulate network delay for initial load
   setTimeout(() => {
-    console.log(`📬 Mock: Loaded ${userNotifications.length} notifications`);
-    callback(userNotifications);
-  }, 500);
+    callback([...userNotifications]);
+  }, 100);
 
   // Return unsubscribe function
   return () => {
-    console.log('📬 Mock: Unsubscribed from notifications');
+    subscribers = subscribers.filter(s => s !== sub);
   };
 };
 
 // Mock subscription function for conversations
 export const subscribeToConversations = (userId, callback) => {
   console.log('💬 Mock: Subscribing to conversations for user:', userId);
-  
+
   // Filter conversations for the user
-  const userConversations = mockConversations.filter(c => 
+  const userConversations = mockConversations.filter(c =>
     c.participants.includes(userId)
   );
-  
+
   // Simulate real-time updates
   setTimeout(() => {
     console.log(`💬 Mock: Loaded ${userConversations.length} conversations`);
@@ -208,10 +232,10 @@ export const subscribeToConversations = (userId, callback) => {
 // Mock subscription function for messages
 export const subscribeToMessages = (conversationId, callback) => {
   console.log('💬 Mock: Subscribing to messages for conversation:', conversationId);
-  
+
   // Filter messages for the conversation
   const conversationMessages = mockMessages.filter(m => m.conversationId === conversationId);
-  
+
   // Simulate real-time updates
   setTimeout(() => {
     console.log(`💬 Mock: Loaded ${conversationMessages.length} messages`);
@@ -225,9 +249,29 @@ export const subscribeToMessages = (conversationId, callback) => {
 };
 
 // Mock notification creation functions
+export const createNotification = async (notificationData) => {
+  console.log('📝 Mock: Creating notification', notificationData);
+
+  const newNotification = {
+    id: `notif-${Date.now()}`,
+    read: false,
+    timestamp: new Date(),
+    createdAt: new Date(), // Added for compatibility with components using createdAt
+    ...notificationData
+  };
+
+  console.log('   └─ New Notification ID:', newNotification.id, 'Recipient:', newNotification.recipientId);
+  mockNotifications.unshift(newNotification);
+
+  // Notify UI
+  notifySubscribers();
+
+  return { success: true, notificationId: newNotification.id };
+};
+
 export const createChatMessageNotification = async (recipientId, sender, message, conversationId) => {
   console.log('📝 Mock: Creating chat notification');
-  
+
   const newNotification = {
     id: `notif-${Date.now()}`,
     type: NOTIFICATION_TYPES.CHAT_MESSAGE,
@@ -247,13 +291,16 @@ export const createChatMessageNotification = async (recipientId, sender, message
 
   // Add to mock data
   mockNotifications.unshift(newNotification);
-  
+
+  // Notify UI
+  notifySubscribers();
+
   return { success: true, notificationId: newNotification.id };
 };
 
 export const createFamilyRequestNotification = async (recipientId, requester, relationship) => {
   console.log('👨‍👩‍👧‍👦 Mock: Creating family request notification');
-  
+
   const newNotification = {
     id: `notif-${Date.now()}`,
     type: NOTIFICATION_TYPES.FAMILY_REQUEST,
@@ -271,13 +318,58 @@ export const createFamilyRequestNotification = async (recipientId, requester, re
   };
 
   mockNotifications.unshift(newNotification);
-  
+
+  // Notify UI
+  notifySubscribers();
+
+  return { success: true, notificationId: newNotification.id };
+};
+
+export const createFamilyRequestAcceptedNotification = async (recipientId, accepter) => {
+  console.log('👨‍👩‍👧‍👦 Mock: Creating family request accepted notification');
+
+  const newNotification = {
+    id: `notif-${Date.now()}`,
+    type: NOTIFICATION_TYPES.FAMILY_REQUEST_ACCEPTED,
+    title: 'Family Request Accepted',
+    message: `${accepter.name} accepted your family request`,
+    recipientId,
+    senderId: accepter.uid,
+    senderName: accepter.name,
+    read: false,
+    timestamp: new Date()
+  };
+
+  mockNotifications.unshift(newNotification);
+  notifySubscribers();
+
+  return { success: true, notificationId: newNotification.id };
+};
+
+export const createFamilyRequestRejectedNotification = async (recipientId, rejecter) => {
+  console.log('👨‍👩‍👧‍👦 Mock: Creating family request rejected notification');
+
+  const newNotification = {
+    id: `notif-${Date.now()}`,
+    type: NOTIFICATION_TYPES.FAMILY_REQUEST_REJECTED,
+    title: 'Family Request Declined',
+    message: `${rejecter.name} declined your family request`,
+    recipientId,
+    senderId: rejecter.uid,
+    senderName: rejecter.name,
+    read: false,
+    timestamp: new Date()
+  };
+
+  mockNotifications.unshift(newNotification);
+  notifySubscribers();
+
   return { success: true, notificationId: newNotification.id };
 };
 
 export const createEmergencyAlertNotification = async (recipientId, sender, message) => {
   console.log('🚨 Mock: Creating emergency notification');
-  
+
   const newNotification = {
     id: `notif-${Date.now()}`,
     type: NOTIFICATION_TYPES.EMERGENCY_ALERT,
@@ -295,44 +387,56 @@ export const createEmergencyAlertNotification = async (recipientId, sender, mess
   };
 
   mockNotifications.unshift(newNotification);
-  
+
+  // Notify UI
+  notifySubscribers();
+
   return { success: true, notificationId: newNotification.id };
 };
 
 // Mock utility functions
 export const markNotificationAsRead = async (notificationId) => {
   console.log('✅ Mock: Marking notification as read:', notificationId);
-  
+
   const notification = mockNotifications.find(n => n.id === notificationId);
   if (notification) {
     notification.read = true;
     notification.readAt = new Date();
+
+    // Notify UI
+    notifySubscribers();
   }
-  
+
   return { success: true };
 };
 
 export const markAllNotificationsAsRead = async (userId) => {
   console.log('✅ Mock: Marking all notifications as read for user:', userId);
-  
+
   mockNotifications.forEach(n => {
     if (n.recipientId === userId || n.recipientId === 'current-user-id') {
       n.read = true;
       n.readAt = new Date();
     }
   });
-  
+
+  // Notify UI
+  notifySubscribers();
+
   return { success: true };
 };
 
 export const deleteNotification = async (notificationId) => {
   console.log('🗑️ Mock: Deleting notification:', notificationId);
-  
+
   const index = mockNotifications.findIndex(n => n.id === notificationId);
-  if (index > -1) {
+  if (index > - 1) {
     mockNotifications.splice(index, 1);
+
+    // Notify UI
+    notifySubscribers();
   }
-  
+
   return { success: true };
 };
 
@@ -373,19 +477,19 @@ export const getNotificationColor = (type) => {
 
 export const formatNotificationTime = (timestamp) => {
   if (!timestamp) return '';
-  
+
   const now = new Date();
   const time = new Date(timestamp);
   const diffInMinutes = Math.floor((now - time) / (1000 * 60));
-  
+
   if (diffInMinutes < 1) return 'Just now';
   if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-  
+
   const diffInHours = Math.floor(diffInMinutes / 60);
   if (diffInHours < 24) return `${diffInHours}h ago`;
-  
+
   const diffInDays = Math.floor(diffInHours / 24);
   if (diffInDays < 7) return `${diffInDays}d ago`;
-  
+
   return time.toLocaleDateString();
 };

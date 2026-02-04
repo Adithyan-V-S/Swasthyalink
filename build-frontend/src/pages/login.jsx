@@ -69,7 +69,7 @@ const Login = () => {
           ];
 
           const isAdminEmail = adminEmails.includes(user.email.toLowerCase()) ||
-                              user.email.toLowerCase().includes('admin');
+            user.email.toLowerCase().includes('admin');
 
           if (isAdminEmail) {
             console.log("Admin user detected via Google redirect:", user.email);
@@ -87,6 +87,8 @@ const Login = () => {
             console.log("Existing user data (redirect):", userData);
             if (userData.role === "doctor") {
               navigate("/doctordashboard");
+            } else if (userData.role === "nurse") {
+              navigate("/nursedashboard");
             } else if (userData.role === "patient") {
               navigate("/patientdashboard");
             } else if (userData.role === "family") {
@@ -108,7 +110,7 @@ const Login = () => {
                 emailVerified: user.emailVerified,
                 photoURL: user.photoURL || null
               };
-              
+
               await setDoc(userDocRef, userData);
               console.log("✅ User document created successfully (redirect)");
               navigate("/patientdashboard");
@@ -138,37 +140,39 @@ const Login = () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       console.log("✅ Google popup sign-in successful:", result);
-      
+
       // Get the signed-in user
       const user = result.user;
-      
+
       // Check if this is an admin user
       const adminEmails = [
         "admin@gmail.com",
         "admin@swasthyalink.com",
         "administrator@swasthyalink.com"
       ];
-      
+
       const isAdminEmail = adminEmails.includes(user.email.toLowerCase()) ||
-                          user.email.toLowerCase().includes('admin');
-      
+        user.email.toLowerCase().includes('admin');
+
       if (isAdminEmail) {
         console.log("Admin user detected via Google popup:", user.email);
         setPresetAdmin(true);
         navigate("/admindashboard");
         return;
       }
-      
+
       // Check if user exists in Firestore
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
-      
+
       if (userDocSnap.exists()) {
         // User exists, navigate based on role
         const userData = userDocSnap.data();
         console.log("Existing user data:", userData);
         if (userData.role === "doctor") {
           navigate("/doctordashboard");
+        } else if (userData.role === "nurse") {
+          navigate("/nursedashboard");
         } else if (userData.role === "patient") {
           navigate("/patientdashboard");
         } else if (userData.role === "family") {
@@ -190,7 +194,7 @@ const Login = () => {
             emailVerified: user.emailVerified,
             photoURL: user.photoURL || null
           };
-          
+
           await setDoc(userDocRef, userData);
           console.log("✅ User document created successfully");
           navigate("/patientdashboard");
@@ -201,7 +205,7 @@ const Login = () => {
       }
     } catch (err) {
       console.error("[ERROR] Google sign-in (popup) failed:", err);
-      
+
       // Handle specific Google Auth errors
       if (err.code === 'auth/popup-closed-by-user') {
         setError("Sign-in was cancelled. Please try again.");
@@ -222,14 +226,15 @@ const Login = () => {
       // Create user in Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(auth, testUser.email, testUser.password);
       const user = userCredential.user;
-      
+
       console.log(`✅ Test user created: ${user.uid}`);
-      
+
       // Create user document in Firestore
       const userData = {
         uid: user.uid,
-        name: testUser.role === 'doctor' ? (testUser.name || 'Dr. Test Doctor') : 
-              testUser.role === 'patient' ? 'Test Patient' : 'Test Family Member',
+        name: testUser.role === 'doctor' ? (testUser.name || 'Dr. Test Doctor') :
+          testUser.role === 'nurse' ? (testUser.name || 'Nurse Demo') :
+            testUser.role === 'patient' ? 'Test Patient' : 'Test Family Member',
         email: user.email,
         role: testUser.role,
         createdAt: new Date().toISOString(),
@@ -237,7 +242,7 @@ const Login = () => {
         emailVerified: user.emailVerified,
         photoURL: user.photoURL || null
       };
-      
+
       // Add doctor-specific fields if it's a doctor account
       if (testUser.role === 'doctor') {
         userData.specialization = testUser.specialization || 'General Medicine';
@@ -245,10 +250,10 @@ const Login = () => {
         userData.phone = testUser.phone || '+1234567890';
         userData.status = 'active';
       }
-      
+
       await setDoc(doc(db, "users", user.uid), userData);
       console.log(`✅ User document created in Firestore for ${testUser.role}`);
-      
+
       return user;
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
@@ -261,6 +266,16 @@ const Login = () => {
         throw error;
       }
     }
+  };
+
+  const handleDemoLogin = (demoEmail, demoPassword) => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    // Use a small timeout to allow state updates before submit
+    setTimeout(() => {
+      const loginBtn = document.querySelector('button[type="submit"]');
+      if (loginBtn) loginBtn.click();
+    }, 100);
   };
 
   const handleSubmit = async (e) => {
@@ -289,6 +304,7 @@ const Login = () => {
     const testCredentials = [
       { email: "test@swasthyakink.com", password: "test123", role: "patient", redirect: "/patientdashboard" },
       { email: "doctor@swasthyakink.com", password: "doctor123", role: "doctor", redirect: "/doctordashboard" },
+      { email: "nurse@swasthyalink.com", password: "nurse123", role: "nurse", redirect: "/nursedashboard" },
       { email: "family@swasthyakink.com", password: "family123", role: "family", redirect: "/familydashboard" },
       { email: "doctor1758796374014@swasthyakink.com", password: "Doc374014!", role: "doctor", redirect: "/doctordashboard" },
       { email: "doctor1758810279159@swasthyalink.com", password: "Doc279159!", role: "doctor", redirect: "/doctordashboard" }
@@ -296,14 +312,14 @@ const Login = () => {
 
     // Check for exact match first
     let testUser = testCredentials.find(cred => cred.email === email && cred.password === password);
-    
+
     // If no exact match, check for doctor pattern: doctor{timestamp}@swasthyalink.com with Doc{last6digits}!
     if (!testUser && email.includes('@swasthyalink.com') && email.startsWith('doctor')) {
       const timestampMatch = email.match(/doctor(\d+)@swasthyalink\.com/);
       if (timestampMatch) {
         const timestamp = timestampMatch[1];
         const expectedPassword = `Doc${timestamp.slice(-6)}!`;
-        
+
         if (password === expectedPassword) {
           testUser = {
             email: email,
@@ -315,25 +331,25 @@ const Login = () => {
         }
       }
     }
-    
+
     if (testUser) {
       console.log(`Test ${testUser.role} credentials detected, creating account and redirecting to ${testUser.redirect}`);
       setLoading(false);
-      
+
       try {
         // Create the test user account in Firebase Authentication
         await createTestUserAccount(testUser);
-        
+
         // Force set the role in localStorage for immediate access
         localStorage.setItem('testUserRole', testUser.role);
         console.log(`✅ Set testUserRole to: ${testUser.role}`);
-        
+
         // Force a storage event to trigger AuthContext update
         window.dispatchEvent(new StorageEvent('storage', {
           key: 'testUserRole',
           newValue: testUser.role
         }));
-        
+
         // Small delay to ensure AuthContext updates
         setTimeout(() => {
           navigate(testUser.redirect);
@@ -353,7 +369,7 @@ const Login = () => {
     console.log("🔍 Looking for:", { email: email.toLowerCase(), password });
     console.log("🔍 localStorage mockDoctors key exists:", localStorage.getItem('mockDoctors') !== null);
     console.log("🔍 Number of mock doctors found:", mockDoctors.length);
-    
+
     // Add the admin-created doctor to mockDoctors if not already present
     if (email === "websitejobportal@gmail.com" && password === "websitejobportal123") {
       console.log("🔍 Adding admin-created doctor to mockDoctors list");
@@ -370,7 +386,7 @@ const Login = () => {
         status: 'active',
         createdAt: new Date().toISOString()
       };
-      
+
       // Check if doctor already exists
       const existingDoctor = mockDoctors.find(doc => doc.email === adminDoctor.email);
       if (!existingDoctor) {
@@ -426,20 +442,20 @@ const Login = () => {
           createdAt: new Date().toISOString()
         }
       ];
-      
+
       localStorage.setItem('mockDoctors', JSON.stringify(testDoctors));
       console.log("✅ Test doctors created in localStorage");
-      
+
       // Re-check with the new data
       const newMockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
       console.log("🔍 New mock doctors after creation:", newMockDoctors);
-      
+
       // Try to find the doctor again
       const newDoctorMatch = newMockDoctors.find(doc =>
-        doc.email?.toLowerCase().trim() === email.toLowerCase().trim() && 
+        doc.email?.toLowerCase().trim() === email.toLowerCase().trim() &&
         doc.password?.trim() === password.trim()
       );
-      
+
       if (newDoctorMatch) {
         console.log("✅ Doctor found after creating test data:", newDoctorMatch);
         // Process the login with the found doctor
@@ -473,7 +489,7 @@ const Login = () => {
     }
 
     const doctorMatch = mockDoctors.find(doc =>
-      doc.email?.toLowerCase().trim() === email.toLowerCase().trim() && 
+      doc.email?.toLowerCase().trim() === email.toLowerCase().trim() &&
       doc.password?.trim() === password.trim()
     );
     console.log("🔍 Doctor match result:", doctorMatch);
@@ -500,15 +516,15 @@ const Login = () => {
         console.log("Attempting Firebase Auth sign-in...");
         const userCredential = await signInWithEmailAndPassword(auth, doctorMatch.email, doctorMatch.password);
         const user = userCredential.user;
-        
+
         console.log("✅ Doctor signed in successfully with Firebase Auth:", user.uid);
-        
+
         // Update doctor user with Firebase UID
         doctorUser.uid = user.uid;
-        
+
       } catch (firebaseError) {
         console.log("Firebase Auth failed, using localStorage authentication:", firebaseError.message);
-        
+
         // Try to create Firebase account if it doesn't exist
         if (firebaseError.code === 'auth/user-not-found' || firebaseError.code === 'auth/wrong-password') {
           try {
@@ -523,7 +539,7 @@ const Login = () => {
               phone: doctorMatch.phone,
               redirect: "/doctordashboard"
             });
-            
+
             // Update doctor user with new Firebase UID
             const updatedDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
             const doctorIndex = updatedDoctors.findIndex(doc => doc.id === doctorMatch.id);
@@ -531,7 +547,7 @@ const Login = () => {
               updatedDoctors[doctorIndex].uid = doctorUser.uid;
               localStorage.setItem('mockDoctors', JSON.stringify(updatedDoctors));
             }
-            
+
           } catch (createError) {
             console.log("Firebase account creation failed, continuing with localStorage:", createError.message);
           }
@@ -554,7 +570,7 @@ const Login = () => {
       } catch (error) {
         console.error("Navigation error:", error);
       }
-      
+
       return;
     }
 
@@ -622,13 +638,14 @@ const Login = () => {
       const response = await authService.login(email, password);
       if (response.success) {
         const user = response.user;
-        
+
         // Check if user is a doctor - doctors don't need email verification
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
         const isDoctor = userDocSnap.exists() && userDocSnap.data().role === 'doctor';
-        
-        if (!user.emailVerified && !isDoctor) {
+        const isNurse = userDocSnap.exists() && userDocSnap.data().role === 'nurse';
+
+        if (!user.emailVerified && !isDoctor && !isNurse) {
           setError(ERROR_MESSAGES.INVALID_EMAIL);
           setShowResend(true);
           setLoading(false);
@@ -639,6 +656,8 @@ const Login = () => {
           // Navigate based on user role
           if (userData.role === 'doctor') {
             navigate("/doctordashboard");
+          } else if (userData.role === 'nurse') {
+            navigate("/nursedashboard");
           } else if (userData.role === 'admin') {
             navigate("/admindashboard");
           } else {
@@ -686,10 +705,10 @@ const Login = () => {
       setForgotPasswordMessage("Please enter your email address.");
       return;
     }
-    
+
     setLoading(true);
     setForgotPasswordMessage("");
-    
+
     try {
       await sendPasswordResetEmail(auth, forgotPasswordEmail);
       setForgotPasswordMessage("Password reset email sent! Please check your inbox.");
@@ -756,7 +775,7 @@ const Login = () => {
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg font-medium text-base shadow hover:bg-indigo-50 hover:text-indigo-700 transition-colors duration-200 mb-6"
               >
-                <svg className="w-5 h-5" viewBox="0 0 48 48"><g><path fill="#4285F4" d="M24 9.5c3.54 0 6.7 1.22 9.19 3.61l6.85-6.85C35.64 2.7 30.23 0 24 0 14.82 0 6.73 5.82 2.69 14.09l7.98 6.2C12.36 13.6 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.1 24.55c0-1.64-.15-3.22-.42-4.74H24v9.01h12.42c-.54 2.9-2.18 5.36-4.65 7.01l7.19 5.59C43.98 37.13 46.1 31.3 46.1 24.55z"/><path fill="#FBBC05" d="M10.67 28.29c-1.13-3.36-1.13-6.97 0-10.33l-7.98-6.2C.7 15.1 0 19.44 0 24c0 4.56.7 8.9 2.69 12.24l7.98-6.2z"/><path fill="#EA4335" d="M24 48c6.23 0 11.64-2.06 15.52-5.6l-7.19-5.59c-2.01 1.35-4.59 2.15-8.33 2.15-6.26 0-11.64-4.1-13.33-9.64l-7.98 6.2C6.73 42.18 14.82 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></g></svg>
+                <svg className="w-5 h-5" viewBox="0 0 48 48"><g><path fill="#4285F4" d="M24 9.5c3.54 0 6.7 1.22 9.19 3.61l6.85-6.85C35.64 2.7 30.23 0 24 0 14.82 0 6.73 5.82 2.69 14.09l7.98 6.2C12.36 13.6 17.74 9.5 24 9.5z" /><path fill="#34A853" d="M46.1 24.55c0-1.64-.15-3.22-.42-4.74H24v9.01h12.42c-.54 2.9-2.18 5.36-4.65 7.01l7.19 5.59C43.98 37.13 46.1 31.3 46.1 24.55z" /><path fill="#FBBC05" d="M10.67 28.29c-1.13-3.36-1.13-6.97 0-10.33l-7.98-6.2C.7 15.1 0 19.44 0 24c0 4.56.7 8.9 2.69 12.24l7.98-6.2z" /><path fill="#EA4335" d="M24 48c6.23 0 11.64-2.06 15.52-5.6l-7.19-5.59c-2.01 1.35-4.59 2.15-8.33 2.15-6.26 0-11.64-4.1-13.33-9.64l-7.98 6.2C6.73 42.18 14.82 48 24 48z" /><path fill="none" d="M0 0h48v48H0z" /></g></svg>
                 {loading ? "Signing in..." : "Sign in with Google"}
               </button>
             )}
@@ -769,11 +788,10 @@ const Login = () => {
               // Forgot Password Form
               <form className="w-full flex flex-col gap-4" onSubmit={handleForgotPassword}>
                 {forgotPasswordMessage && (
-                  <div className={`text-sm mb-2 p-2 rounded-lg ${
-                    forgotPasswordMessage.includes("sent")
-                      ? "bg-green-100 text-green-700"
-                      : "bg-red-100 text-red-700"
-                  }`}>
+                  <div className={`text-sm mb-2 p-2 rounded-lg ${forgotPasswordMessage.includes("sent")
+                    ? "bg-green-100 text-green-700"
+                    : "bg-red-100 text-red-700"
+                    }`}>
                     {forgotPasswordMessage}
                   </div>
                 )}
@@ -887,7 +905,38 @@ const Login = () => {
               </button>
             )}
 
-            {/* Demo/test credentials UI removed */}
+            {/* Quick Demo Access */}
+            {!showForgotPassword && (
+              <div className="mt-8 pt-8 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Quick Demo Access</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleDemoLogin('admin@gmail.com', 'admin123')}
+                    className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors text-sm border border-slate-200"
+                  >
+                    <span className="material-icons text-base">admin_panel_settings</span> Admin
+                  </button>
+                  <button
+                    onClick={() => handleDemoLogin('doctor@swasthyakink.com', 'doctor123')}
+                    className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm border border-blue-200"
+                  >
+                    <span className="material-icons text-base">medical_services</span> Doctor
+                  </button>
+                  <button
+                    onClick={() => handleDemoLogin('nurse@swasthyalink.com', 'nurse123')}
+                    className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors text-sm border border-emerald-200"
+                  >
+                    <span className="material-icons text-base">person</span> Nurse
+                  </button>
+                  <button
+                    onClick={() => handleDemoLogin('test@swasthyakink.com', 'test123')}
+                    className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors text-sm border border-purple-200"
+                  >
+                    <span className="material-icons text-base">person</span> Patient
+                  </button>
+                </div>
+              </div>
+            )}
 
             {!showForgotPassword && (
               <div className="mt-6 text-sm text-gray-600">

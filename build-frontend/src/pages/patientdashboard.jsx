@@ -4,7 +4,7 @@ import { auth } from "../firebaseConfig";
 import SnakeGame from "./SnakeGame";
 import heroImage from "../assets/images/hero-healthcare.jpg";
 import { useAuth } from "../contexts/AuthContext";
-import { subscribeToNotifications } from "../services/notificationService";
+import { subscribeToNotifications, createNotification, NOTIFICATION_TYPES } from "../services/notificationService";
 import { db } from "../firebaseConfig";
 import { onSnapshot, doc, getDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
 import { getPendingRequests, acceptRequest, getConnectedDoctors, resendRequest } from "../services/patientDoctorService";
@@ -1116,17 +1116,16 @@ const PatientDashboard = () => {
                     <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm">HRV 84 ms</span>
                     <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm">Cholesterol 166 mg/dl</span>
                     <button
-                      onClick={() => {
-                        const mockNotification = {
-                          id: 'test-notification-' + Date.now(),
-                          type: 'doctor_connection_request',
+                      onClick={async () => {
+                        console.log('📝 Creating test notification via service...');
+                        await createNotification({
+                          recipientId: currentUser?.uid || 'current-user-id',
+                          type: NOTIFICATION_TYPES.DOCTOR_CONNECTION_REQUEST,
                           title: 'Test Doctor Request',
                           message: 'Dr. Test Doctor wants to connect with you',
                           timestamp: new Date(),
                           read: false
-                        };
-                        setNotifications(prev => [mockNotification, ...prev]);
-                        console.log('Test notification added:', mockNotification);
+                        });
                       }}
                       className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-sm hover:bg-green-100"
                     >

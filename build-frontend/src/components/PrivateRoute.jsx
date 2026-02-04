@@ -20,7 +20,7 @@ const PrivateRoute = ({ children, requiredRole = null }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check if email is verified (except for preset admin)
+  // Check if email is verified (except for preset admin, doctors, and nurses)
   if (!isEmailVerified) {
     return <Navigate to="/login" state={{ from: location, message: "Please verify your email before accessing this page." }} replace />;
   }
