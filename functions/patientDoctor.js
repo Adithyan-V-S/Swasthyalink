@@ -1,6 +1,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require('firebase-admin');
 const { v4: uuidv4 } = require('uuid');
+const { validateToken } = require('./utils/auth');
 
 // Helper for CORS
 const setCors = (res) => {
@@ -17,7 +18,12 @@ exports.sendConnectionRequest = onRequest(async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(204).send('');
 
     try {
+        const decodedToken = await validateToken(req);
         const { doctorId, patientId, patientEmail, patientPhone, connectionMethod, message } = req.body;
+
+        if (decodedToken.uid !== doctorId) {
+            return res.status(403).json({ success: false, error: 'Unauthorized: Doctor ID mismatch' });
+        }
 
         if (!doctorId || (!patientId && !patientEmail && !patientPhone) || !connectionMethod) {
             return res.status(400).json({ success: false, error: 'Missing required fields' });
@@ -78,7 +84,8 @@ exports.sendConnectionRequest = onRequest(async (req, res) => {
                 id: doctorId,
                 name: doctorData.name || doctorData.displayName || 'Doctor',
                 email: doctorData.email || null,
-                specialization: doctorData.specialization || 'General'
+                specialization: doctorData.specialization || 'General',
+                avatar: doctorData.photoURL || doctorData.avatar || null
             },
             patient: {
                 id: finalPatientId || null,
@@ -92,8 +99,14 @@ exports.sendConnectionRequest = onRequest(async (req, res) => {
             otpExpiry,
             status: 'pending',
             createdAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
+
+        // Ensure we don't write undefined fields
+        Object.keys(requestData).forEach(key => requestData[key] === undefined && delete requestData[key]);
+        Object.keys(requestData.doctor).forEach(key => requestData.doctor[key] === undefined && delete requestData.doctor[key]);
+        Object.keys(requestData.patient).forEach(key => requestData.patient[key] === undefined && delete requestData.patient[key]);
 
         await db.collection('patient_doctor_requests').doc(requestId).set(requestData);
 
@@ -126,7 +139,18 @@ exports.getPendingRequests = onRequest(async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(204).send('');
 
     try {
+        const decodedToken = await validateToken(req);
         const { patientId, patientEmail } = req.query;
+
+        // Ensure user is requesting their own data
+        if (decodedToken.uid !== patientId && decodedToken.email !== patientEmail) {
+            // We allow fetching if either ID or email matches, but prefer ID check.
+            // If patientId is provided, it must match.
+            if (patientId && decodedToken.uid !== patientId) {
+                return res.status(403).json({ success: false, error: 'Unauthorized' });
+            }
+        }
+
         if (!patientId && !patientEmail) {
             return res.status(400).json({ success: false, error: 'Patient identifier required' });
         }
@@ -136,8 +160,6 @@ exports.getPendingRequests = onRequest(async (req, res) => {
 
         const requests = [];
 
-        // Firestore doesn't support OR queries easily across fields without complex indexing
-        // We'll fetch by patientId and then by email if needed, or just fetch all and filter
         if (patientId) {
             const snap = await query.where('patientId', '==', patientId).get();
             snap.forEach(doc => requests.push(doc.data()));
@@ -153,6 +175,10 @@ exports.getPendingRequests = onRequest(async (req, res) => {
         res.json({ success: true, requests });
     } catch (error) {
         console.error('getPendingRequests error:', error);
+        // Special handling for auth errors to return 401
+        if (error.message === 'Unauthorized') {
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
+        }
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -165,7 +191,13 @@ exports.acceptRequest = onRequest(async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(204).send('');
 
     try {
+        const decodedToken = await validateToken(req);
         const { requestId, patientId, otp } = req.body;
+
+        if (decodedToken.uid !== patientId) {
+            return res.status(403).json({ success: false, error: 'Unauthorized' });
+        }
+
         if (!requestId || !patientId) return res.status(400).json({ success: false, error: 'Missing fields' });
 
         const db = admin.firestore();
@@ -209,11 +241,9 @@ exports.acceptRequest = onRequest(async (req, res) => {
         batch.set(db.collection('patient_doctor_relationships').doc(relationshipId), relationshipData);
         batch.update(requestRef, { status: 'accepted', updatedAt: new Date().toISOString() });
 
-        // Update notification
-        await batch.commit();
-
         // Notification for doctor
-        await db.collection('notifications').add({
+        const notificationRef = db.collection('notifications').doc();
+        batch.set(notificationRef, {
             recipientId: requestData.doctorId,
             senderId: patientId,
             type: 'connection_accepted',
@@ -222,6 +252,8 @@ exports.acceptRequest = onRequest(async (req, res) => {
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             read: false
         });
+
+        await batch.commit();
 
         res.json({ success: true, relationship: relationshipData });
     } catch (error) {
@@ -238,11 +270,23 @@ exports.rejectRequest = onRequest(async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(204).send('');
 
     try {
+        const decodedToken = await validateToken(req);
         const { requestId } = req.body;
         if (!requestId) return res.status(400).json({ success: false, error: 'Request ID required' });
 
         const db = admin.firestore();
-        await db.collection('patient_doctor_requests').doc(requestId).update({
+        // Verify ownership before updating
+        const requestRef = db.collection('patient_doctor_requests').doc(requestId);
+        const requestSnap = await requestRef.get();
+        if (!requestSnap.exists) return res.status(404).json({ success: false, error: 'Request not found' });
+
+        const requestData = requestSnap.data();
+        // Allow rejection if user is either patient or doctor involved
+        if (requestData.patientId !== decodedToken.uid && requestData.doctorId !== decodedToken.uid && requestData.patientEmail !== decodedToken.email) {
+            return res.status(403).json({ success: false, error: 'Unauthorized' });
+        }
+
+        await requestRef.update({
             status: 'rejected',
             updatedAt: new Date().toISOString()
         });
@@ -262,7 +306,13 @@ exports.getConnectedDoctors = onRequest(async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(204).send('');
 
     try {
+        const decodedToken = await validateToken(req);
         const { patientId } = req.query;
+
+        if (decodedToken.uid !== patientId) {
+            return res.status(403).json({ success: false, error: 'Unauthorized' });
+        }
+
         if (!patientId) return res.status(400).json({ success: false, error: 'PatientId required' });
 
         const db = admin.firestore();
@@ -271,7 +321,31 @@ exports.getConnectedDoctors = onRequest(async (req, res) => {
             .where('status', '==', 'active')
             .get();
 
-        const doctors = snap.docs.map(doc => doc.data());
+        const doctors = await Promise.all(snap.docs.map(async doc => {
+            const relData = doc.data();
+            // Fetch fresh doctor data
+            try {
+                const userSnap = await db.collection('users').doc(relData.doctorId).get();
+                if (userSnap.exists) {
+                    const userData = userSnap.data();
+                    // Merge user data into relationship data for display
+                    return {
+                        ...relData,
+                        doctor: {
+                            ...relData.doctor,
+                            name: userData.name || userData.displayName || relData.doctor?.name || 'Doctor',
+                            email: userData.email || relData.doctor?.email,
+                            specialization: userData.specialization || relData.doctor?.specialization || 'General',
+                            avatar: userData.photoURL || userData.avatar || relData.doctor?.avatar
+                        }
+                    };
+                }
+            } catch (err) {
+                console.warn('Error fetching doctor details:', err);
+            }
+            return relData;
+        }));
+
         res.json({ success: true, doctors });
     } catch (error) {
         console.error('getConnectedDoctors error:', error);
@@ -287,7 +361,13 @@ exports.getConnectedPatients = onRequest(async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(204).send('');
 
     try {
+        const decodedToken = await validateToken(req);
         const { doctorId } = req.query;
+
+        if (decodedToken.uid !== doctorId) {
+            return res.status(403).json({ success: false, error: 'Unauthorized' });
+        }
+
         if (!doctorId) return res.status(400).json({ success: false, error: 'DoctorId required' });
 
         const db = admin.firestore();
@@ -296,7 +376,35 @@ exports.getConnectedPatients = onRequest(async (req, res) => {
             .where('status', '==', 'active')
             .get();
 
-        const patients = snap.docs.map(doc => doc.data());
+        const patients = await Promise.all(snap.docs.map(async doc => {
+            const relData = doc.data();
+            // Fetch fresh patient data
+            try {
+                const userSnap = await db.collection('users').doc(relData.patientId).get();
+                if (userSnap.exists) {
+                    const userData = userSnap.data();
+                    // Merge user data into relationship data for display
+                    return {
+                        ...relData,
+                        patient: {
+                            ...relData.patient,
+                            name: userData.name || userData.displayName || relData.patient?.name || 'Patient',
+                            email: userData.email || relData.patient?.email,
+                            phone: userData.phone || relData.patient?.phone,
+                            avatar: userData.photoURL || userData.avatar || relData.patient?.avatar,
+                            age: userData.age,
+                            gender: userData.gender,
+                            bloodType: userData.bloodType,
+                            allergies: userData.allergies
+                        }
+                    };
+                }
+            } catch (err) {
+                console.warn('Error fetching patient details:', err);
+            }
+            return relData;
+        }));
+
         res.json({ success: true, patients });
     } catch (error) {
         console.error('getConnectedPatients error:', error);
@@ -312,11 +420,23 @@ exports.updatePermissions = onRequest(async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(204).send('');
 
     try {
+        const decodedToken = await validateToken(req);
         const { relationshipId, permissions } = req.body;
-        if (!relationshipId || !permissions) return res.status(400).json({ success: false, error: 'Missing fields' });
 
         const db = admin.firestore();
-        await db.collection('patient_doctor_relationships').doc(relationshipId).update({
+        const relRef = db.collection('patient_doctor_relationships').doc(relationshipId);
+        const relSnap = await relRef.get();
+
+        if (!relSnap.exists) return res.status(404).json({ success: false, error: 'Relationship not found' });
+
+        // Only patient can update permissions
+        if (relSnap.data().patientId !== decodedToken.uid) {
+            return res.status(403).json({ success: false, error: 'Unauthorized' });
+        }
+
+        if (!relationshipId || !permissions) return res.status(400).json({ success: false, error: 'Missing fields' });
+
+        await relRef.update({
             permissions,
             updatedAt: new Date().toISOString()
         });
@@ -336,11 +456,23 @@ exports.terminateRelationship = onRequest(async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(204).send('');
 
     try {
+        const decodedToken = await validateToken(req);
         const { relationshipId } = req.body;
-        if (!relationshipId) return res.status(400).json({ success: false, error: 'RelationshipId required' });
 
         const db = admin.firestore();
-        await db.collection('patient_doctor_relationships').doc(relationshipId).update({
+        const relRef = db.collection('patient_doctor_relationships').doc(relationshipId);
+        const relSnap = await relRef.get();
+
+        if (!relSnap.exists) return res.status(404).json({ success: false, error: 'Relationship not found' });
+
+        const data = relSnap.data();
+        if (data.patientId !== decodedToken.uid && data.doctorId !== decodedToken.uid) {
+            return res.status(403).json({ success: false, error: 'Unauthorized' });
+        }
+
+        if (!relationshipId) return res.status(400).json({ success: false, error: 'RelationshipId required' });
+
+        await relRef.update({
             status: 'terminated',
             terminatedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -361,35 +493,69 @@ exports.searchPatients = onRequest(async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(204).send('');
 
     try {
+        const decodedToken = await validateToken(req);
+        // Verify user is a doctor (optional, depending on custom claims or just allowing authenticated users)
+
         const { query } = req.query;
         if (!query || query.length < 3) return res.status(400).json({ success: false, error: 'Query too short' });
 
         const db = admin.firestore();
-        // Since we can't do full-text search easily in Firestore, we'll do email prefix search
-        const snap = await db.collection('users')
+        const patients = [];
+
+        // Strategy: 
+        // 1. Try exact match on email (most common)
+        // 2. Try exact match on phone
+        // 3. Fallback to broad search only if 1 & 2 fail or if we want to be exhaustive
+
+        const emailQuery = db.collection('users').where('email', '==', query).where('role', '==', 'patient').get();
+        const phoneQuery = db.collection('users').where('phone', '==', query).where('role', '==', 'patient').get();
+
+        const [emailSnap, phoneSnap] = await Promise.all([emailQuery, phoneQuery]);
+
+        const addDocs = (snap) => {
+            snap.forEach(doc => {
+                const data = doc.data();
+                if (!patients.find(p => p.id === doc.id)) {
+                    patients.push({
+                        id: doc.id,
+                        name: data.name,
+                        email: data.email,
+                        phone: data.phone
+                    });
+                }
+            });
+        };
+
+        addDocs(emailSnap);
+        addDocs(phoneSnap);
+
+        // If we found results, return them. 
+        if (patients.length > 0) {
+            return res.json({ success: true, patients });
+        }
+
+        // If no exact match, and we are willing to be expensive:
+        // Attempt a prefix search for email
+        // Note: Firestore string prefix search: where('field', '>=', query).where('field', '<=', query + '\uf8ff')
+
+        const prefixSnap = await db.collection('users')
             .where('role', '==', 'patient')
+            .where('email', '>=', query)
+            .where('email', '<=', query + '\uf8ff')
+            .limit(10)
             .get();
 
-        const patients = [];
-        const lowerQuery = query.toLowerCase();
+        addDocs(prefixSnap);
 
-        snap.forEach(doc => {
-            const data = doc.data();
-            const name = (data.name || '').toLowerCase();
-            const email = (data.email || '').toLowerCase();
-            const phone = (data.phone || '');
+        if (patients.length > 0) {
+            return res.json({ success: true, patients });
+        }
 
-            if (name.includes(lowerQuery) || email.includes(lowerQuery) || phone.includes(query)) {
-                patients.push({
-                    id: doc.id,
-                    name: data.name,
-                    email: data.email,
-                    phone: data.phone
-                });
-            }
-        });
+        // Final fallback: The expensive full scan (limit to 50 latest)
+        // Only do this if strictly necessary. For now, let's skip it to see if email/phone search is enough.
+        // It forces users to be specific, which is good for privacy too.
 
-        res.json({ success: true, patients: patients.slice(0, 10) });
+        res.json({ success: true, patients });
     } catch (error) {
         console.error('searchPatients error:', error);
         res.status(500).json({ success: false, error: error.message });

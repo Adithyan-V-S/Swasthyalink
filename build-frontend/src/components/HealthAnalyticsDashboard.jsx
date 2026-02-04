@@ -92,10 +92,9 @@ const HealthAnalyticsDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">AI Health Analytics</h2>
+      <div className="bg-white rounded-lg shadow-sm p-4">
         <p className="text-gray-600">
           Get personalized health insights powered by machine learning algorithms.
           Enter your health metrics below for comprehensive risk assessment.
@@ -108,31 +107,28 @@ const HealthAnalyticsDashboard = () => {
           <nav className="flex space-x-8 px-6">
             <button
               onClick={() => setActiveTab('assessment')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'assessment'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'assessment'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
             >
               Risk Assessment
             </button>
             <button
               onClick={() => setActiveTab('trends')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'trends'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'trends'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
             >
               Health Trends
             </button>
             <button
               onClick={() => setActiveTab('insights')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'insights'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'insights'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
             >
               AI Insights
             </button>

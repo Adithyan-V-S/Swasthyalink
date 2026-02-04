@@ -80,14 +80,14 @@ const EnhancedNotificationCenter = () => {
         // Set active tab to family requests
         localStorage.setItem('familyDashboardTab', '1');
         break;
-      
+
       case NOTIFICATION_TYPES.FAMILY_REQUEST_ACCEPTED:
       case NOTIFICATION_TYPES.FAMILY_REQUEST_REJECTED:
         navigate('/familydashboard');
         // Set active tab to family network
         localStorage.setItem('familyDashboardTab', '2');
         break;
-      
+
       case NOTIFICATION_TYPES.CHAT_MESSAGE:
         navigate('/familydashboard');
         // Set active tab to family chat and open conversation
@@ -98,31 +98,31 @@ const EnhancedNotificationCenter = () => {
         // Also set a flag to indicate this is a chat notification
         localStorage.setItem('openFamilyChat', 'true');
         break;
-      
+
       case NOTIFICATION_TYPES.DOCTOR_CONNECTION_REQUEST:
         navigate('/patientdashboard');
         // Set active tab to doctors section
         localStorage.setItem('patientDashboardTab', 'doctors');
         break;
-      
+
       case NOTIFICATION_TYPES.CONNECTION_ACCEPTED:
         navigate('/patientdashboard');
         // Set active tab to doctors section
         localStorage.setItem('patientDashboardTab', 'doctors');
         break;
-      
+
       case NOTIFICATION_TYPES.PRESCRIPTION_RECEIVED:
         navigate('/patientdashboard');
         // Set active tab to prescriptions section
         localStorage.setItem('patientDashboardTab', 'prescriptions');
         break;
-      
+
       case NOTIFICATION_TYPES.EMERGENCY_ALERT:
         navigate('/familydashboard');
         // Set active tab to overview for emergency
         localStorage.setItem('familyDashboardTab', '0');
         break;
-      
+
       default:
         navigate('/familydashboard');
         break;
@@ -139,7 +139,16 @@ const EnhancedNotificationCenter = () => {
 
   const handleDeleteNotification = async (notificationId, event) => {
     event.stopPropagation();
-    await deleteNotification(notificationId);
+
+    // Optimistic UI update: remove from local state immediately
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+
+    try {
+      await deleteNotification(notificationId);
+    } catch (error) {
+      console.error('Failed to delete notification on backend:', error);
+      // Optional: rollback or show error toast if needed
+    }
   };
 
   const getTabCount = (tab) => {
@@ -166,15 +175,14 @@ const EnhancedNotificationCenter = () => {
       <div
         key={notification.id}
         onClick={() => handleNotificationClick(notification)}
-        className={`p-5 cursor-pointer hover:bg-gray-50 transition-colors rounded-lg mx-2 my-2 ${
-          !notification.read ? 'bg-blue-50 border-l-4 border-blue-500' : 'bg-white border border-gray-100'
-        }`}
+        className={`p-5 cursor-pointer hover:bg-gray-50 transition-colors rounded-lg mx-2 my-2 ${!notification.read ? 'bg-blue-50 border-l-4 border-blue-500' : 'bg-white border border-gray-100'
+          }`}
       >
         <div className="flex items-start space-x-4">
           <div className={`flex-shrink-0 p-3 rounded-full ${colorClasses}`}>
             <span className="material-icons text-lg">{icon}</span>
           </div>
-          
+
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between">
               <h4 className={`text-base font-semibold leading-tight ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}>
@@ -187,11 +195,11 @@ const EnhancedNotificationCenter = () => {
                 )}
               </div>
             </div>
-            
+
             <p className="text-base text-gray-600 mt-2 leading-relaxed break-words">
               {notification.message}
             </p>
-            
+
             {notification.priority === 'urgent' && (
               <div className="mt-3">
                 <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-red-100 text-red-800 border border-red-200 animate-pulse">
@@ -201,13 +209,19 @@ const EnhancedNotificationCenter = () => {
               </div>
             )}
           </div>
-          
+
           <button
-            onClick={(e) => handleDeleteNotification(notification.id, e)}
-            className="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 transition-colors rounded-full hover:bg-red-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              handleDeleteNotification(notification.id, e);
+            }}
+            className="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 transition-colors rounded-full hover:bg-red-50 relative z-10"
             title="Delete notification"
+            type="button"
+            aria-label="Delete notification"
           >
-            <span className="material-icons text-lg">close</span>
+            <span className="text-xl font-bold">×</span>
           </button>
         </div>
       </div>
@@ -271,11 +285,10 @@ const EnhancedNotificationCenter = () => {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
-                    activeTab === tab.key
-                      ? 'text-indigo-600 border-b-2 border-indigo-500 bg-white'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === tab.key
+                    ? 'text-indigo-600 border-b-2 border-indigo-500 bg-white'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
                 >
                   <div className="flex items-center justify-center space-x-1">
                     <span className="material-icons text-sm">{tab.icon}</span>

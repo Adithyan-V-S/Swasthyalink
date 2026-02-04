@@ -6,7 +6,7 @@ import heroImage from "../assets/images/hero-healthcare.jpg";
 import { useAuth } from "../contexts/AuthContext";
 import { subscribeToNotifications } from "../services/notificationService";
 import { db } from "../firebaseConfig";
-import { onSnapshot, doc, getDoc } from "firebase/firestore";
+import { onSnapshot, doc, getDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
 import { getPendingRequests, acceptRequest, getConnectedDoctors, resendRequest } from "../services/patientDoctorService";
 import { subscribeToPatientPrescriptions, formatDate, isTestUser } from "../utils/firebaseUtils";
 import { getPatientPrescriptions } from "../services/prescriptionService";
@@ -309,6 +309,8 @@ const PatientDashboard = () => {
 
       console.log('🔍 Making Cloud Function call to:', `${CLOUD_FUNCTIONS_BASE}/getFamilyNetwork?uid=${currentUser.uid}`);
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       const response = await fetch(`${CLOUD_FUNCTIONS_BASE}/getFamilyNetwork?uid=${currentUser.uid}`, {
         method: 'GET',
         headers: {
@@ -384,141 +386,119 @@ const PatientDashboard = () => {
   };
 
   const loadPrescriptions = async () => {
-    try {
-      console.log('💊 Loading prescriptions for user:', currentUser?.uid);
-      console.log('💊 Current user object:', currentUser);
-      setPrescriptionsLoading(true);
-
-      // For testing purposes, add a mock prescription if API fails
-      let response;
-      try {
-        response = await getPatientPrescriptions(currentUser);
-        console.log('💊 Raw API response:', response);
-      } catch (apiError) {
-        console.error('❌ API call failed, using mock data:', apiError);
-
-        // Create mock prescription for testing
-        response = {
-          success: true,
-          prescriptions: [{
-            id: 'mock-prescription-1',
-            medications: [{
-              name: 'paracetamol',
-              dosage: '500gm',
-              frequency: '3 times daily',
-              duration: '7 days',
-              instructions: 'nothing'
-            }],
-            doctorName: 'Dr. Test Doctor',
-            doctorSpecialization: 'General Medicine',
-            status: 'sent',
-            createdAt: new Date().toISOString(),
-            instructions: 'Take with food',
-            notes: 'Test prescription for review'
-          }]
-        };
-      }
-
-      if (response.success) {
-        console.log('💊 Prescriptions loaded from API:', response);
-        console.log('💊 Number of prescriptions:', response.prescriptions?.length || 0);
-
-        // Transform the prescription data to match the UI format
-        const transformedPrescriptions = response.prescriptions.map(prescription => {
-          // Get the first medication for display (since UI expects single medication)
-          const firstMedication = prescription.medications && prescription.medications[0];
-
-          return {
-            id: prescription.id,
-            medication: firstMedication?.name || 'Unknown Medication',
-            dosage: firstMedication?.dosage || 'Not specified',
-            frequency: firstMedication?.frequency || 'Not specified',
-            duration: firstMedication?.duration || 'Not specified',
-            instructions: firstMedication?.instructions || prescription.instructions || 'No special instructions',
-            doctorName: prescription.doctorName || 'Unknown Doctor',
-            doctorSpecialization: prescription.doctorSpecialization || 'General Medicine',
-            status: prescription.status === 'sent' ? 'Active' :
-              prescription.status === 'filled' ? 'Completed' :
-                prescription.status === 'cancelled' ? 'Cancelled' : 'Pending',
-            prescribedDate: new Date(prescription.createdAt).toLocaleDateString(),
-            prescribedTime: new Date(prescription.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            notes: prescription.notes || '',
-            refills: '0', // Default refills
-            doctorAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctorName || 'Doctor')}&background=4f46e5&color=fff&size=48`
-          };
-        });
-
-        console.log('💊 Setting prescriptions to:', transformedPrescriptions);
-        setPrescriptions(transformedPrescriptions);
-        console.log('💊 Prescriptions state should now be updated');
-      } else {
-        console.error('❌ Failed to load prescriptions:', response.error);
-        setPrescriptions([]);
-      }
-    } catch (error) {
-      console.error('❌ Error loading prescriptions:', error);
-      setPrescriptions([]);
-    } finally {
-      setPrescriptionsLoading(false);
-      console.log('💊 Prescription loading completed, loading set to false');
-    }
+    // This is now handled by the real-time listener below
+    // We keep this function stub if it's called manually elsewhere, but best to rely on listener
+    console.log('loadPrescriptions called - usage delegated to real-time listener');
   };
 
-  // Fetch pending requests and connected doctors
+  // Real-time listener for prescriptions
   useEffect(() => {
-    const fetchRequestsAndDoctors = async () => {
-      if (!currentUser?.uid) {
-        console.log('PatientDashboard: No currentUser, skipping requests fetch');
-        return;
-      }
+    if (!currentUser?.uid) {
+      setPrescriptions([]);
+      return;
+    }
 
-      // Always fetch real data in production
+    setPrescriptionsLoading(true);
 
-      try {
-        console.log('PatientDashboard: Fetching requests for user:', currentUser.uid);
-        setIsLoadingRequests(true);
-        const [pendingReqs, connectedDocs] = await Promise.all([
-          getPendingRequests(currentUser.uid, currentUser.email, currentUser),
-          getConnectedDoctors(currentUser.uid, currentUser.email, currentUser)
-        ]);
+    const prescriptionsRef = collection(db, 'prescriptions');
+    // Removed orderBy to avoid requiring a composite index. Sorting is done client-side below.
+    const q = query(
+      prescriptionsRef,
+      where('patientId', '==', currentUser.uid)
+    );
 
-        console.log('PatientDashboard: Pending requests:', pendingReqs);
-        console.log('PatientDashboard: Connected doctors:', connectedDocs);
-        setPendingRequests(pendingReqs || []);
-        // Handle both array and object responses
-        if (Array.isArray(connectedDocs)) {
-          console.log('PatientDashboard: connectedDocs is array, setting directly');
-          setConnectedDoctors(connectedDocs);
-        } else if (connectedDocs && connectedDocs.connectedDoctors) {
-          console.log('PatientDashboard: connectedDocs is object, extracting connectedDoctors array');
-          setConnectedDoctors(connectedDocs.connectedDoctors);
-        } else if (connectedDocs && connectedDocs.doctors) {
-          console.log('PatientDashboard: connectedDocs is object, extracting doctors array');
-          setConnectedDoctors(connectedDocs.doctors);
-        } else {
-          console.log('PatientDashboard: connectedDocs is invalid, setting empty array');
-          setConnectedDoctors([]);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      let newPrescriptions = snapshot.docs.map(doc => {
+        const data = doc.data();
+        // Handle both structure formats (medication field vs medications array)
+        let medicationName = data.medication || 'Unknown Medication';
+        let dosage = data.dosage || 'Not specified';
+        let frequency = data.frequency || 'Not specified';
+        let duration = data.duration || 'Not specified';
+        let instructions = data.instructions || 'No special instructions';
+
+        if (data.medications && data.medications.length > 0) {
+          const first = data.medications[0];
+          medicationName = first.name || medicationName;
+          dosage = first.dosage || dosage;
+          frequency = first.frequency || frequency;
+          duration = first.duration || duration;
+          instructions = first.instructions || instructions;
         }
 
-        // Log success message
-        console.log('PatientDashboard: Successfully loaded requests and doctors data');
+        return {
+          id: data.id,
+          medication: medicationName,
+          dosage: dosage,
+          frequency: frequency,
+          duration: duration,
+          instructions: instructions,
+          doctorName: data.doctorName || 'Unknown Doctor',
+          doctorSpecialization: data.doctorSpecialization || 'General Medicine',
+          status: data.status === 'sent' ? 'Active' :
+            data.status === 'filled' ? 'Completed' :
+              data.status === 'cancelled' ? 'Cancelled' : (data.status || 'Pending'),
+          prescribedDate: data.createdAt ? new Date(data.createdAt.seconds ? data.createdAt.seconds * 1000 : data.createdAt).toLocaleDateString() : 'N/A',
+          prescribedTime: data.createdAt ? new Date(data.createdAt.seconds ? data.createdAt.seconds * 1000 : data.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+          rawDate: data.createdAt ? (data.createdAt.seconds ? data.createdAt.seconds * 1000 : new Date(data.createdAt).getTime()) : 0,
+          notes: data.notes || '',
+          refills: '0',
+          doctorAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.doctorName || 'Doctor')}&background=4f46e5&color=fff&size=48`
+        };
+      });
 
-        // Show notification if there are pending requests
-        if (pendingReqs && pendingReqs.length > 0) {
-          console.log('PatientDashboard: Found pending requests, showing notification');
-          // You can add a notification here if needed
-        }
-      } catch (error) {
-        console.error('Error fetching requests and doctors:', error);
-        // Do not inject mock data on API failure in live mode; just show empty state
-        setPendingRequests([]);
-        setConnectedDoctors([]);
-      } finally {
-        setIsLoadingRequests(false);
+      // Sort by date descending (newest first)
+      newPrescriptions.sort((a, b) => b.rawDate - a.rawDate);
+
+      setPrescriptions(newPrescriptions);
+      setPrescriptionsLoading(false);
+    }, (error) => {
+      console.error("Error listening to prescriptions:", error);
+      setPrescriptionsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Fetch pending requests and connected doctors
+  // Listen for real-time connection requests
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+
+    const requestsRef = collection(db, 'patient_doctor_requests');
+    const q = query(
+      requestsRef,
+      where('patientId', '==', currentUser.uid),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const pendingReqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPendingRequests(pendingReqs);
+
+      if (pendingReqs.length > 0) {
+        // Optional: Trigger a browser notification or UI badge update
+        console.log('New pending requests:', pendingReqs.length);
       }
+    });
+
+    // Also listen for connected doctors (relationships)
+    const relationshipsRef = collection(db, 'patient_doctor_relationships');
+    const relQuery = query(
+      relationshipsRef,
+      where('patientId', '==', currentUser.uid),
+      where('status', '==', 'active')
+    );
+
+    const unsubscribeRel = onSnapshot(relQuery, (snapshot) => {
+      const doctors = snapshot.docs.map(doc => doc.data());
+      setConnectedDoctors(doctors);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeRel();
     };
-
-    fetchRequestsAndDoctors();
   }, [currentUser]);
 
   // Prescriptions: no mocks; leave empty until real endpoint is wired

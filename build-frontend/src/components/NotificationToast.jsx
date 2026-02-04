@@ -15,9 +15,9 @@ const NotificationToast = () => {
     const unsubscribe = subscribeToNotifications(currentUser.uid, (notifications) => {
       // Only show toasts for new notifications (created after component mount)
       const newNotifications = notifications.filter(notification => {
-        const notificationTime = notification.createdAt?.getTime?.() || 
-                                notification.createdAt?.toDate?.()?.getTime?.() || 
-                                new Date(notification.createdAt).getTime();
+        const notificationTime = notification.createdAt?.getTime?.() ||
+          notification.createdAt?.toDate?.()?.getTime?.() ||
+          new Date(notification.createdAt).getTime();
         return notificationTime > lastNotificationTime && !notification.read;
       });
 
@@ -54,7 +54,7 @@ const NotificationToast = () => {
 
   const handleToastClick = async (toast) => {
     const { notification } = toast;
-    
+
     // Mark as read
     if (!notification.read) {
       await markNotificationAsRead(notification.id);
@@ -66,13 +66,13 @@ const NotificationToast = () => {
         localStorage.setItem('familyDashboardTab', '1');
         navigate('/familydashboard');
         break;
-      
+
       case NOTIFICATION_TYPES.FAMILY_REQUEST_ACCEPTED:
       case NOTIFICATION_TYPES.FAMILY_REQUEST_REJECTED:
         localStorage.setItem('familyDashboardTab', '2');
         navigate('/familydashboard');
         break;
-      
+
       case NOTIFICATION_TYPES.CHAT_MESSAGE:
         localStorage.setItem('familyDashboardTab', '3');
         if (notification.data?.conversationId) {
@@ -80,12 +80,12 @@ const NotificationToast = () => {
         }
         navigate('/familydashboard');
         break;
-      
+
       case NOTIFICATION_TYPES.EMERGENCY_ALERT:
         localStorage.setItem('familyDashboardTab', '0');
         navigate('/familydashboard');
         break;
-      
+
       default:
         navigate('/familydashboard');
         break;
@@ -156,9 +156,12 @@ const NotificationToast = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 removeToast(toast.id);
               }}
-              className="text-white/70 hover:text-white text-lg leading-none"
+              className="text-white/70 hover:text-white text-2xl leading-none flex-shrink-0 p-1 rounded hover:bg-white/20 transition-colors relative z-10"
+              aria-label="Close notification"
+              type="button"
             >
               ×
             </button>

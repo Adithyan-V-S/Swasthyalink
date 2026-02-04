@@ -25,13 +25,13 @@ const DoctorPrescriptions = () => {
   useEffect(() => {
     loadConnectedPatients();
     loadPrescriptions();
-    
+
     // Set up real-time subscription to prescriptions
     if (currentUser?.uid && !isTestUser()) {
       const unsubscribe = subscribeToDoctorPrescriptions(currentUser.uid, (prescriptions) => {
         setPrescriptions(prescriptions);
       });
-      
+
       return () => {
         if (unsubscribe) unsubscribe();
       };
@@ -78,7 +78,7 @@ const DoctorPrescriptions = () => {
             lastVisit: "2024-01-15"
           },
           {
-            id: "patient2", 
+            id: "patient2",
             name: "Sarah Johnson",
             email: "sarah.johnson@example.com",
             age: 32,
@@ -95,21 +95,25 @@ const DoctorPrescriptions = () => {
         }
         return;
       }
-      
+
       // For real users, fetch from backend
       const response = await getConnectedPatients();
       // Service may return an array or an object with { patients }
       const rawPatients = Array.isArray(response) ? response : response?.patients;
       if (rawPatients && rawPatients.length >= 0) {
         const patients = rawPatients.map((patient) => {
+          // The backend returns relationship objects, which contain a nested 'patient' object with user details
+          // We need to check both the root (if flattened) and the nested 'patient' property
+          const patientData = patient.patient || {};
+
           const normalized = {
-            id: patient.id || patient.patientId || patient.uid,
-            name: patient.name || patient.patientName || patient.fullName || 'Unknown Patient',
-            email: patient.email || patient.patientEmail || 'No email',
-            age: patient.age || 'Not specified',
-            gender: patient.gender || 'Not specified',
-            bloodType: patient.bloodType || 'Not specified',
-            allergies: patient.allergies || [],
+            id: patient.patientId || patient.id || patient.uid,
+            name: patientData.name || patient.name || patient.patientName || patient.fullName || 'Unknown Patient',
+            email: patientData.email || patient.email || patient.patientEmail || 'No email',
+            age: patientData.age || patient.age || 'Not specified',
+            gender: patientData.gender || patient.gender || 'Not specified',
+            bloodType: patientData.bloodType || patient.bloodType || 'Not specified',
+            allergies: patientData.allergies || patient.allergies || [],
             lastVisit: patient.lastVisit || patient.connectedAt || patient.lastInteraction || 'Never'
           };
           return normalized;
@@ -148,7 +152,7 @@ const DoctorPrescriptions = () => {
         },
         {
           id: "pres2",
-          patientName: "Sarah Johnson", 
+          patientName: "Sarah Johnson",
           medication: "Metformin 850mg",
           dosage: "850mg",
           frequency: "Twice daily",
@@ -172,7 +176,7 @@ const DoctorPrescriptions = () => {
 
   const handleSubmitPrescription = async (e) => {
     e.preventDefault();
-    
+
     if (!selectedPatient) {
       setNotification('Please select a patient');
       return;
@@ -185,7 +189,7 @@ const DoctorPrescriptions = () => {
 
     try {
       setIsLoading(true);
-      
+
       // Create prescription object
       const newPrescription = {
         id: Date.now().toString(),
@@ -203,7 +207,7 @@ const DoctorPrescriptions = () => {
 
       // Save to Firestore using utility function
       const result = await savePrescription(newPrescription);
-      
+
       if (result.success) {
         // Show success message with SweetAlert2
         const Swal = (await import('sweetalert2')).default;
@@ -214,7 +218,7 @@ const DoctorPrescriptions = () => {
           confirmButtonText: 'OK',
           confirmButtonColor: '#3B82F6'
         });
-        
+
         // Reset form
         setPrescription({
           medication: "",
@@ -225,13 +229,13 @@ const DoctorPrescriptions = () => {
           notes: ""
         });
         setSelectedPatient(null);
-        
+
         // Clear notification
         setNotification('');
       } else {
         throw new Error(result.error || 'Failed to save prescription');
       }
-      
+
     } catch (error) {
       console.error('Error saving prescription:', error);
       setNotification('Error saving prescription');
@@ -265,11 +269,11 @@ const DoctorPrescriptions = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
+
           {/* Write Prescription Form */}
           <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Write New Prescription</h2>
-            
+
             <form onSubmit={handleSubmitPrescription} className="space-y-6">
               {/* Patient Selection / Display */}
               <div>
@@ -437,7 +441,7 @@ const DoctorPrescriptions = () => {
           {/* Recent Prescriptions */}
           <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Recent Prescriptions</h2>
-            
+
             {prescriptions.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <p>No prescriptions yet</p>
@@ -447,44 +451,44 @@ const DoctorPrescriptions = () => {
                 {prescriptions && prescriptions.length > 0 ? prescriptions.map((pres, index) => {
                   console.log('Rendering prescription:', { id: pres.id, medication: pres.medication, index });
                   return (
-                  <div key={pres.id || `prescription-${index}`} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-medium text-gray-900">{pres.medication}</h3>
-                        <p className="text-sm text-gray-600">{pres.patientName}</p>
+                    <div key={pres.id || `prescription-${index}`} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-medium text-gray-900">{pres.medication}</h3>
+                          <p className="text-sm text-gray-600">{pres.patientName}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(pres.status)}`}>
+                          {pres.status}
+                        </span>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(pres.status)}`}>
-                        {pres.status}
-                      </span>
+
+                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                        <div>
+                          <span className="font-medium">Dosage:</span> {pres.dosage || 'Not specified'}
+                        </div>
+                        <div>
+                          <span className="font-medium">Frequency:</span> {pres.frequency || 'Not specified'}
+                        </div>
+                        <div>
+                          <span className="font-medium">Duration:</span> {pres.duration || 'Not specified'}
+                        </div>
+                        <div>
+                          <span className="font-medium">Date:</span> {pres.prescribedDate}
+                        </div>
+                      </div>
+
+                      {pres.instructions && (
+                        <div className="text-sm text-gray-600">
+                          <span className="font-medium">Instructions:</span> {pres.instructions}
+                        </div>
+                      )}
+
+                      {pres.notes && (
+                        <div className="text-sm text-gray-600 mt-2">
+                          <span className="font-medium">Notes:</span> {pres.notes}
+                        </div>
+                      )}
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
-                      <div>
-                        <span className="font-medium">Dosage:</span> {pres.dosage || 'Not specified'}
-                      </div>
-                      <div>
-                        <span className="font-medium">Frequency:</span> {pres.frequency || 'Not specified'}
-                      </div>
-                      <div>
-                        <span className="font-medium">Duration:</span> {pres.duration || 'Not specified'}
-                      </div>
-                      <div>
-                        <span className="font-medium">Date:</span> {pres.prescribedDate}
-                      </div>
-                    </div>
-                    
-                    {pres.instructions && (
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium">Instructions:</span> {pres.instructions}
-                      </div>
-                    )}
-                    
-                    {pres.notes && (
-                      <div className="text-sm text-gray-600 mt-2">
-                        <span className="font-medium">Notes:</span> {pres.notes}
-                      </div>
-                    )}
-                  </div>
                   );
                 }) : null}
               </div>

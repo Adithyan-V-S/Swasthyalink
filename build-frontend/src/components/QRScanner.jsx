@@ -1,102 +1,83 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 const QRScanner = ({ onScan, onError, onClose, isActive }) => {
-  const [hasPermission, setHasPermission] = useState(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
+  const [scanResult, setScanResult] = useState(null);
+  const [isReady, setIsReady] = useState(false);
+  const scannerRef = useRef(null);
+
+  // Use a stable element ID
+  const qrcodeRegionId = "html5qr-code-full-region";
 
   useEffect(() => {
-    if (isActive) {
-      startCamera();
-    } else {
-      stopCamera();
+    // Only initialize scanner if active and not already running
+    if (isActive && !scannerRef.current) {
+      // Short delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        startScanner();
+      }, 100);
+      return () => clearTimeout(timer);
     }
 
+    // Cleanup function
     return () => {
-      stopCamera();
+      stopScanner();
     };
   }, [isActive]);
 
-  const startCamera = async () => {
+  const startScanner = () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment', // Use back camera
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      });
-      
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+      // Config for the scanner
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+      };
+
+      // Create instance if not exists
+      // Note: Html5QrcodeScanner builds its own UI. 
+      // If we want custom UI we should use Html5Qrcode class instead.
+      // For simplicity and robustness, using the Scanner UI first.
+
+      // clear any previous instance
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(err => console.error('Failed to clear scanner', err));
       }
-      
-      setHasPermission(true);
-      setIsScanning(true);
-      
-      // Start scanning for QR codes
-      scanForQRCode();
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      setHasPermission(false);
-      if (onError) {
-        onError('Camera access denied or not available');
-      }
-    }
-  };
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setIsScanning(false);
-  };
+      const scanner = new Html5QrcodeScanner(qrcodeRegionId, config, /* verbose= */ false);
+      scannerRef.current = scanner;
 
-  const scanForQRCode = () => {
-    if (!isScanning || !videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      
-      // Simple QR code detection (in a real app, you'd use a library like jsQR)
-      // For now, we'll simulate QR detection
-      detectQRCode(imageData);
-    }
-
-    // Continue scanning
-    if (isScanning) {
-      requestAnimationFrame(scanForQRCode);
-    }
-  };
-
-  const detectQRCode = (imageData) => {
-    // This is a placeholder for QR code detection
-    // In a real implementation, you would use a library like jsQR
-    // For demo purposes, we'll simulate detection after a few seconds
-    
-    // Simulate QR code detection
-    setTimeout(() => {
-      if (isScanning && Math.random() > 0.95) { // 5% chance per frame
-        const mockQRData = 'https://yourapp.com/patient/mock-patient-id-12345';
+      scanner.render((decodedText, decodedResult) => {
+        console.log('Code scanned =', decodedText);
         if (onScan) {
-          onScan(mockQRData);
+          onScan(decodedText);
+          stopScanner(); // Stop after successful scan
         }
-        setIsScanning(false);
+      }, (errorMessage) => {
+        // parse error, ignore it.
+        // console.log('Scan parse error=', errorMessage);
+      });
+
+      setIsReady(true);
+    } catch (err) {
+      console.error("Error starting scanner:", err);
+      if (onError) onError(err.message);
+    }
+  };
+
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      try {
+        scannerRef.current.clear().catch(error => {
+          console.error("Failed to clear html5-qrcode scanner. ", error);
+        });
+      } catch (e) {
+        console.error("Error stopping scanner", e);
       }
-    }, 100);
+      scannerRef.current = null;
+      setIsReady(false);
+    }
   };
 
   const handleManualInput = (qrData) => {
@@ -105,91 +86,27 @@ const QRScanner = ({ onScan, onError, onClose, isActive }) => {
     }
   };
 
-  if (hasPermission === null) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Requesting camera permission...</p>
-        </div>
-      </div>
-    );
-  }
+  return (
+    <div className="relative bg-white p-4 rounded-lg">
+      <h3 className="text-lg font-semibold text-center mb-4">Scan Patient QR Code</h3>
 
-  if (hasPermission === false) {
-    return (
-      <div className="p-6 text-center">
-        <div className="text-red-500 text-4xl mb-4">📷</div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Camera Access Required</h3>
-        <p className="text-gray-600 mb-4">
-          Please allow camera access to scan QR codes. You can also paste the QR code data manually below.
-        </p>
-        <ManualQRInput onSubmit={handleManualInput} />
+      {!isActive ? (
+        <div className="text-center p-4">Scanner is closed</div>
+      ) : (
+        <div id={qrcodeRegionId} className="w-full max-w-sm mx-auto overflow-hidden"></div>
+      )}
+
+      <div className="mt-4 flex justify-between items-center">
         <button
           onClick={onClose}
-          className="mt-4 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
         >
-          Close Scanner
+          Close
         </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative">
-      <div className="relative bg-black rounded-lg overflow-hidden">
-        <video
-          ref={videoRef}
-          className="w-full h-64 object-cover"
-          playsInline
-          muted
-        />
-        <canvas
-          ref={canvasRef}
-          className="hidden"
-        />
-        
-        {/* Scanning overlay */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="relative">
-            {/* Scanning frame */}
-            <div className="w-48 h-48 border-2 border-white rounded-lg relative">
-              <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-500 rounded-tl-lg"></div>
-              <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-500 rounded-tr-lg"></div>
-              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500 rounded-bl-lg"></div>
-              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500 rounded-br-lg"></div>
-              
-              {/* Scanning line animation */}
-              <div className="absolute inset-0 overflow-hidden">
-                <div className="w-full h-0.5 bg-blue-500 animate-pulse"></div>
-              </div>
-            </div>
-            
-            {/* Instructions */}
-            <p className="text-white text-center mt-4 bg-black bg-opacity-50 px-3 py-1 rounded">
-              Position QR code within the frame
-            </p>
-          </div>
-        </div>
-
-        {/* Controls */}
-        <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center">
-          <button
-            onClick={onClose}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-          >
-            Cancel
-          </button>
-          
-          <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-white text-sm">Scanning...</span>
-          </div>
-        </div>
       </div>
 
       {/* Manual input option */}
-      <div className="mt-4">
+      <div className="mt-6 border-t pt-4">
         <ManualQRInput onSubmit={handleManualInput} />
       </div>
     </div>
@@ -217,7 +134,7 @@ const ManualQRInput = ({ onSubmit }) => {
           type="text"
           value={qrData}
           onChange={(e) => setQrData(e.target.value)}
-          placeholder="https://yourapp.com/patient/..."
+          placeholder="https://swasthyalink.com/patient/..."
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </div>
