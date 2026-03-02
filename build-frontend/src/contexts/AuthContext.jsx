@@ -15,6 +15,8 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [branchId, setBranchId] = useState(null);
+  const [companyId, setCompanyId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isPresetAdmin, setIsPresetAdmin] = useState(false);
 
@@ -35,6 +37,8 @@ export const AuthProvider = ({ children }) => {
         console.log('🧪 Test user role:', testUserRole);
         setCurrentUser(mockUser);
         setUserRole(testUserRole);
+        setBranchId(mockUser.branchId || null);
+        setCompanyId(mockUser.companyId || null);
         setLoading(false);
         return true;
       }
@@ -57,6 +61,9 @@ export const AuthProvider = ({ children }) => {
           console.log('🧪 Using test user - checking role from localStorage');
           const testUserRole = localStorage.getItem('testUserRole');
           setUserRole(testUserRole || 'patient'); // Use stored role or default to patient
+          const testUser = JSON.parse(localStorage.getItem('testUser') || '{}');
+          setBranchId(testUser.branchId || null);
+          setCompanyId(testUser.companyId || null);
           setLoading(false);
           return;
         }
@@ -72,6 +79,8 @@ export const AuthProvider = ({ children }) => {
             const userData = userDocSnap.data();
             console.log("AuthContext: User data from Firestore:", userData);
             setUserRole(userData.role || 'patient');
+            setBranchId(userData.branchId || null);
+            setCompanyId(userData.companyId || null);
 
             // Update currentUser with Firestore data to ensure consistent UID
             const updatedUser = {
@@ -129,6 +138,8 @@ export const AuthProvider = ({ children }) => {
             }
 
             setUserRole(userData.role);
+            setBranchId(userData.branchId || null);
+            setCompanyId(userData.companyId || null);
             setCurrentUser(userData);
           }
         } catch (error) {
@@ -195,8 +206,9 @@ export const AuthProvider = ({ children }) => {
     // Treat test users and preset admin as verified
     if (localStorage.getItem('testUser') || isPresetAdmin) return true;
 
-    // If Firestore role resolved to doctor or nurse, allow access even if Firebase flag isn't set
-    if (userRole === 'doctor' || userRole === 'nurse') return true;
+    // If Firestore role resolved to doctor, nurse, or pharmacy, allow access even if Firebase flag isn't set
+    const currentRole = (userRole || '').toLowerCase().trim();
+    if (currentRole === 'doctor' || currentRole === 'nurse' || currentRole === 'pharmacy') return true;
 
     return !!currentUser?.emailVerified;
   };
@@ -236,8 +248,11 @@ export const AuthProvider = ({ children }) => {
         console.log('🔐 Access granted: Patient can access family dashboard');
         return true;
       }
-      const hasAccess = role === requiredRole;
-      console.log('🔐 Role check result:', hasAccess, `(${role} === ${requiredRole})`);
+      const currentRole = (role || '').toLowerCase().trim();
+      const targetRole = (requiredRole || '').toLowerCase().trim();
+
+      const hasAccess = currentRole === targetRole;
+      console.log('🔐 Role check result:', hasAccess, `(${currentRole} === ${targetRole})`);
       return hasAccess;
     }
 
@@ -254,6 +269,8 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('testUserRole');
         setCurrentUser(null);
         setUserRole(null);
+        setBranchId(null);
+        setCompanyId(null);
         return;
       }
 
@@ -262,6 +279,8 @@ export const AuthProvider = ({ children }) => {
       setIsPresetAdmin(false);
       setCurrentUser(null);
       setUserRole(null);
+      setBranchId(null);
+      setCompanyId(null);
     } catch (error) {
       console.error("Error logging out:", error);
     }
@@ -270,6 +289,8 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     userRole: getUserRole(),
+    branchId,
+    companyId,
     isAuthenticated: isAuthenticated(),
     isEmailVerified: isEmailVerified(),
     isPresetAdmin,

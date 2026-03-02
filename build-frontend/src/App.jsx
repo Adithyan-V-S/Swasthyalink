@@ -33,10 +33,12 @@ import HealthAnalytics from './pages/HealthAnalytics';
 import AIExerciseCoach from './components/exercise/AIExerciseCoach';
 import SmartReportAnalyzer from './components/SmartReportAnalyzer';
 import NurseDashboard from './pages/NurseDashboard';
+import HospitalAdminDashboard from './pages/HospitalAdminDashboard';
+import PharmacyDashboard from './pages/PharmacyDashboard';
 
 function AppContent() {
   const location = useLocation();
-  const hideHeaderFooterOn = ['/login', '/register', '/admindashboard'];
+  const hideHeaderFooterOn = ['/login', '/register', '/admindashboard', '/hospitaladmindashboard', '/pharmacydashboard'];
   const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/doctordashboard', '/nursedashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer'];
 
   return (
@@ -63,6 +65,8 @@ function AppContent() {
         <Route path="/exercise-coach" element={<PrivateRoute requiredRole="patient"><div className="p-8 max-w-7xl mx-auto"><AIExerciseCoach /></div></PrivateRoute>} />
         <Route path="/report-analyzer" element={<PrivateRoute requiredRole="patient"><SmartReportAnalyzer /></PrivateRoute>} />
         <Route path="/nursedashboard" element={<PrivateRoute requiredRole="nurse"><NurseDashboard /></PrivateRoute>} />
+        <Route path="/hospitaladmindashboard" element={<PrivateRoute requiredRole="hospital_admin"><HospitalAdminDashboard /></PrivateRoute>} />
+        <Route path="/pharmacydashboard" element={<PrivateRoute requiredRole="pharmacy"><PharmacyDashboard /></PrivateRoute>} />
         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
       </Routes>
       {!hideHeaderFooterOn.includes(location.pathname) && <Footer />}

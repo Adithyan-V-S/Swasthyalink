@@ -18,14 +18,23 @@ const PublicRoute = ({ children }) => {
   // If user is authenticated and email is verified, redirect to appropriate dashboard
   if (isAuthenticated && isEmailVerified) {
     const from = location.state?.from?.pathname || "/";
-    
+
     // Redirect based on user role
-    if (userRole === "admin") {
+    const role = (userRole || '').toLowerCase().trim();
+    if (role === "admin") {
       return <Navigate to="/admindashboard" replace />;
-    } else if (userRole === "doctor") {
+    } else if (role === "doctor") {
       return <Navigate to="/doctordashboard" replace />;
-    } else if (userRole === "patient") {
+    } else if (role === "patient") {
       return <Navigate to="/patientdashboard" replace />;
+    } else if (role === "nurse") {
+      return <Navigate to="/nursedashboard" replace />;
+    } else if (role === "pharmacy") {
+      return <Navigate to="/pharmacydashboard" replace />;
+    } else if (role === "hospital_admin") {
+      return <Navigate to="/hospitaladmindashboard" replace />;
+    } else if (role === "family") {
+      return <Navigate to="/familydashboard" replace />;
     } else {
       // Fallback to home page if role is unknown
       return <Navigate to="/" replace />;
