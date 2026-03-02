@@ -11,7 +11,7 @@ const PharmacyDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [showAddMedicine, setShowAddMedicine] = useState(false);
     const [newMedicine, setNewMedicine] = useState({ name: '', stock: 0, price: 0, category: 'General' });
-    const { user, branchId } = useAuth();
+    const { user, branchId, logout } = useAuth();
     const navigate = useNavigate();
 
     // Mock category list
@@ -128,7 +128,10 @@ const PharmacyDashboard = () => {
                 </nav>
 
                 <button
-                    onClick={() => auth.signOut().then(() => navigate('/login'))}
+                    onClick={async () => {
+                        await logout();
+                        navigate('/login');
+                    }}
                     className="mt-auto flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all"
                 >
                     <span className="material-icons text-sm">logout</span>

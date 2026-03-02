@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebaseConfig';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 const HospitalAdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -10,6 +11,7 @@ const HospitalAdminDashboard = () => {
     const [loading, setLoading] = useState(false);
     const [showAddBranch, setShowAddBranch] = useState(false);
     const [newBranch, setNewBranch] = useState({ name: '', address: '', phone: '' });
+    const { logout } = useAuth();
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -118,7 +120,10 @@ const HospitalAdminDashboard = () => {
                     >
                         {loading ? 'Verifying...' : 'Verify Blockchain Integrity'}
                     </button>
-                    <button onClick={() => auth.signOut().then(() => navigate('/login'))} className="bg-slate-800 text-slate-400 border border-slate-700 px-4 py-2 rounded-lg hover:text-white transition-colors">Logout</button>
+                    <button onClick={async () => {
+                        await logout();
+                        navigate('/login');
+                    }} className="bg-slate-800 text-slate-400 border border-slate-700 px-4 py-2 rounded-lg hover:text-white transition-colors">Logout</button>
                 </div>
             </header>
 

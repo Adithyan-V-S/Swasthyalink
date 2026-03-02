@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../firebaseConfig';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import BranchQueue from '../components/BranchQueue';
 import PatientVitalsForm from '../components/PatientVitalsForm';
 
 const NurseDashboard = () => {
-    const { currentUser } = useAuth();
+    const { currentUser, logout } = useAuth();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('queue');
     const [queue, setQueue] = useState([]);
     const [selectedPatient, setSelectedPatient] = useState(null);
@@ -169,6 +171,17 @@ const NurseDashboard = () => {
                                 ))}
                             </nav>
                         </div>
+
+                        <button
+                            onClick={async () => {
+                                await logout();
+                                navigate('/login');
+                            }}
+                            className="w-full flex items-center gap-3 px-8 py-4 rounded-[24px] bg-red-50 text-red-600 font-black text-sm hover:bg-red-100 transition-all shadow-sm"
+                        >
+                            <span className="material-icons">logout</span>
+                            LOGOUT SESSION
+                        </button>
                     </div>
 
                     {/* Main Stage */}

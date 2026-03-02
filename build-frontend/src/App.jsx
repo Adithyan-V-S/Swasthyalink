@@ -38,8 +38,8 @@ import PharmacyDashboard from './pages/PharmacyDashboard';
 
 function AppContent() {
   const location = useLocation();
-  const hideHeaderFooterOn = ['/login', '/register', '/admindashboard', '/hospitaladmindashboard', '/pharmacydashboard'];
-  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/doctordashboard', '/nursedashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer'];
+  const hideHeaderFooterOn = ['/login', '/register', '/admindashboard', '/hospitaladmindashboard', '/pharmacydashboard', '/nursedashboard', '/doctordashboard'];
+  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer'];
 
   return (
     <ErrorBoundary>
