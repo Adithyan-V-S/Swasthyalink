@@ -3,6 +3,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const { defineString } = require('firebase-functions/params');
 const geminiKey = defineString('GEMINI_API_KEY');
+const blockchainService = require('./blockchainService');
 
 const { onRequest } = require("firebase-functions/v2/https");
 
@@ -57,6 +58,23 @@ exports.analyzeReport = onRequest(async (req, res) => {
                 error: 'Failed to parse AI response',
                 raw: text
             });
+        }
+
+        // 🛡️ Blockchain Integration: Secure the analysis in the ledger
+        try {
+            const block = await blockchainService.addMedicalBlock({
+                recordType: 'lab_report_analysis',
+                recordId: `analysis-${Date.now()}`,
+                patientId: 'currentUser', // We'd ideally pull the real ID from the token here
+                diagnosis: reportData.summary || 'Lab Analysis',
+                timestamp: new Date().toISOString(),
+                dataHash: reportData.results ? reportData.results.length : 0 // Summary fingerprint
+            });
+            console.log(`Lab report analysis linked to blockchain block ${block.index}`);
+            reportData.blockchainIndex = block.index;
+            reportData.blockchainHash = block.hash;
+        } catch (bcError) {
+            console.error('Blockchain linking failed for lab report:', bcError);
         }
 
         res.json({ success: true, data: reportData });

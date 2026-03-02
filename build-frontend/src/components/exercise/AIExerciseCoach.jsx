@@ -77,13 +77,15 @@ const AIExerciseCoach = () => {
                 await tf.ready();
                 const model = poseDetection.SupportedModels.MoveNet;
                 const detectorConfig = {
-                    modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
+                    modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
+                    enableSmoothing: true,
+                    multiPoseMaxDetections: 1
                 };
                 const newDetector = await poseDetection.createDetector(model, detectorConfig);
                 setDetector(newDetector);
                 setIsLoading(false);
-                setFeedback("Get ready! Stand in full view.");
-                speak("I am ready. Stand in full view to begin.");
+                setFeedback("System Calibrated. Stand in full view.");
+                speak("AI High-Precision mode active. Stand in full view to begin.");
             } catch (error) {
                 console.error("Failed to load MoveNet:", error);
                 setFeedback("Error loading AI. Please refresh.");
@@ -229,36 +231,38 @@ const AIExerciseCoach = () => {
             }
 
             if (exerciseTypeRef.current === 'squat') {
-                // Down Trigger: < 90 degrees
-                if (smoothKneeAngle < 90) {
+                // Precision Squat Logic: Depth check + Hip/Knee Ratio
+                const hipKneeDist = Math.abs(leftHip.y - leftKnee.y);
+                const kneeAnkleDist = Math.abs(leftKnee.y - leftAnkle.y);
+
+                // Down Trigger: < 95 degrees WITH depth validation
+                if (smoothKneeAngle < 95 && hipKneeDist < (kneeAnkleDist * 0.8)) {
                     if (!isSquattingRef.current) {
                         setIsSquatting(true);
-                        setFeedback("Good depth! Now push up.");
-                        speak("Good depth! Push up.");
-                        frameCounterRef.current = 0; // Reset counter
+                        setFeedback("Perfect Depth! Hold...");
+                        speak("Target depth reached.");
+                        frameCounterRef.current = 0;
                     }
                 }
 
-                // Up Trigger: > 170 degrees (MUST HOLD for stable frames)
-                if (smoothKneeAngle > 170) {
+                // Up Trigger: > 165 degrees (STABLE RECOVERY)
+                if (smoothKneeAngle > 165) {
                     if (isSquattingRef.current) {
-                        frameCounterRef.current += 1; // Increment hold counter
-
-                        // Require 5 consecutive frames (approx 100-200ms) of valid standing
-                        if (frameCounterRef.current > 5) {
+                        frameCounterRef.current += 1;
+                        if (frameCounterRef.current > 3) { // Require stability
                             const now = Date.now();
-                            if (now - lastRepTimeRef.current > 2000) {
+                            if (now - lastRepTimeRef.current > 1500) {
                                 setIsSquatting(false);
                                 setCount(prev => prev + 1);
                                 setLastRepTime(now);
-                                setFeedback("Great Rep!");
-                                speak("Great repetition! One more.");
+                                setFeedback("Elite Rep! +1");
+                                speak("Excellent form. Keep going.");
                                 frameCounterRef.current = 0;
                             }
                         }
                     } else {
                         frameCounterRef.current = 0;
-                        if (backStraight) setFeedback("Ready. Lower your hips.");
+                        if (backStraight) setFeedback("Ready. Drive hips down.");
                     }
                 }
             } else if (exerciseTypeRef.current === 'pushup') {
@@ -286,32 +290,32 @@ const AIExerciseCoach = () => {
                         }
                     }
 
-                    if (smoothElbowAngle < 80) {
+                    if (smoothElbowAngle < 85) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            setFeedback("Excellent depth!");
-                            speak("Excellent depth! Drive up.");
+                            setFeedback("Full Depth! Chest down.");
+                            speak("Full range of motion.");
                             frameCounterRef.current = 0;
                         }
                     }
 
-                    if (smoothElbowAngle > 165) {
+                    if (smoothElbowAngle > 160) {
                         if (isSquattingRef.current) {
                             frameCounterRef.current += 1;
-                            if (frameCounterRef.current > 5) {
+                            if (frameCounterRef.current > 3) {
                                 const now = Date.now();
-                                if (now - lastRepTimeRef.current > 2000) {
+                                if (now - lastRepTimeRef.current > 1200) {
                                     setIsSquatting(false);
                                     setCount(prev => prev + 1);
                                     setLastRepTime(now);
-                                    setFeedback("Power Rep!");
-                                    speak("Power rep! One more.");
+                                    setFeedback("Sharp Rep! +1");
+                                    speak("One sharp rep. Good control.");
                                     frameCounterRef.current = 0;
                                 }
                             }
                         } else {
                             frameCounterRef.current = 0;
-                            if (bodyLineOk) setFeedback("Ready. Lower your chest.");
+                            if (bodyLineOk) setFeedback("Ready. Lower chest slowly.");
                         }
                     }
                 }
@@ -321,6 +325,11 @@ const AIExerciseCoach = () => {
                     const smoothKneeAngle = alpha * rawKneeAngle + (1 - alpha) * anglesRef.current.knee;
                     anglesRef.current.knee = smoothKneeAngle;
 
+                    // Stability Distance Check (Avoid false triggers from shaking)
+                    const hipHeight = leftHip.y;
+                    const kneeHeight = leftKnee.y;
+                    const verticalDrop = Math.abs(kneeHeight - hipHeight);
+
                     const newDebug = {
                         kneeAngle: Math.round(smoothKneeAngle),
                         state: isSquattingRef.current ? 'Lunge Down' : 'Standing',
@@ -329,11 +338,12 @@ const AIExerciseCoach = () => {
                     debugInfoRef.current = newDebug;
                     setDebugInfo(newDebug);
 
-                    if (smoothKneeAngle < 100) {
+                    // Lunge depth requires BOTH angle < 105 AND significant vertical drop
+                    if (smoothKneeAngle < 105 && verticalDrop > 20) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            setFeedback("Great step! Back up.");
-                            speak("Great step. Step back.");
+                            setFeedback("Great Stance! Hold Depth.");
+                            speak("Good depth. Step back.");
                             frameCounterRef.current = 0;
                         }
                     }
@@ -341,26 +351,33 @@ const AIExerciseCoach = () => {
                     if (smoothKneeAngle > 165) {
                         if (isSquattingRef.current) {
                             frameCounterRef.current += 1;
-                            if (frameCounterRef.current > 5) {
+                            if (frameCounterRef.current > 3) {
                                 const now = Date.now();
-                                if (now - lastRepTimeRef.current > 2000) {
+                                if (now - lastRepTimeRef.current > 1500) {
                                     setIsSquatting(false);
                                     setCount(prev => prev + 1);
                                     setLastRepTime(now);
-                                    setFeedback("Strong Lunge!");
-                                    speak("Strong lunge. Switch legs if needed.");
+                                    setFeedback("Lunge Mastered! +1");
+                                    speak("Perfect step. Switch legs or repeat.");
                                     frameCounterRef.current = 0;
                                 }
                             }
                         } else {
                             frameCounterRef.current = 0;
-                            setFeedback("Ready. Take a long step.");
+                            setFeedback("Ready. Take a controlled step.");
                         }
                     }
                 }
             }
         } else {
-            setFeedback("Make sure your full body is visible.");
+            // Biometric Validation: Check if too far or confidence too low
+            if (leftHip.score < 0.2 || leftKnee.score < 0.2) {
+                setFeedback("System Error: Poor Visibility. Check Lighting.");
+                speak("I can't see your joints clearly. Check your lighting.");
+            } else {
+                setFeedback("Move closer to the camera.");
+                speak("Please step back slightly to show your full body.");
+            }
             setIsSquatting(false);
         }
     }, [isMuted]); // Callback is now perfectly stable - only depends on muted state for 'speak'

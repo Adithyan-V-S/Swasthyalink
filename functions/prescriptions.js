@@ -2,6 +2,7 @@ const { onRequest } = require("firebase-functions/v2/https");
 const admin = require('firebase-admin');
 const { v4: uuidv4 } = require('uuid');
 const { validateToken } = require('./utils/auth');
+const blockchainService = require('./blockchainService');
 
 // Helper for CORS
 const setCors = (res) => {
@@ -45,6 +46,8 @@ exports.createPrescription = onRequest(async (req, res) => {
             id: prescriptionId,
             doctorId,
             patientId,
+            companyId: doctorData.companyId || null,
+            branchId: doctorData.branchId || null,
             doctorName: doctorData.name || 'Unknown Doctor',
             doctorSpecialization: doctorData.specialization || 'General',
             patientName: patientData.name || 'Unknown Patient',
@@ -72,6 +75,32 @@ exports.createPrescription = onRequest(async (req, res) => {
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             read: false
         });
+
+        // 🛡️ Blockchain Integration: Add to ledger
+        try {
+            const block = await blockchainService.addMedicalBlock({
+                recordType: 'prescription',
+                recordId: prescriptionId,
+                patientId: patientId,
+                doctorId: doctorId,
+                doctorName: doctorData.name,
+                diagnosis: diagnosis || 'N/A',
+                timestamp: prescription.createdAt
+            });
+            console.log(`Prescription ${prescriptionId} successfully linked to blockchain block ${block.index}`);
+            prescription.blockchainIndex = block.index;
+            prescription.blockchainHash = block.hash;
+
+            // Update prescription with blockchain info
+            await db.collection('prescriptions').doc(prescriptionId).update({
+                blockchainIndex: block.index,
+                blockchainHash: block.hash
+            });
+        } catch (bcError) {
+            console.error('Blockchain linking failed for prescription:', bcError);
+            // We don't fail the whole request because medical care is priority, 
+            // but we log the integrity gap.
+        }
 
         res.json({ success: true, prescriptionId, prescription });
     } catch (error) {
@@ -147,13 +176,37 @@ exports.getPatientPrescriptions = onRequest(async (req, res) => {
         const { patientId } = req.query;
 
         // Allow patient or their doctor? For now strictly patient.
-        if (decodedToken.uid !== patientId) {
-            return res.status(403).json({ success: false, error: 'Unauthorized' });
-        }
-
         if (!patientId) return res.status(400).json({ success: false, error: 'PatientId required' });
 
         const db = admin.firestore();
+
+        // 🛡️ SECURITY: Cross-Branch Access Check
+        // If the requester is NOT the patient, check if they are a doctor from the same company
+        if (decodedToken.uid !== patientId) {
+            const requesterSnap = await db.collection('users').doc(decodedToken.uid).get();
+            const requesterData = requesterSnap.data() || {};
+
+            // Allow if doctor and patient is connected to the same company
+            // In a real app, we'd also check if the patient has a relationship with the company
+            if (requesterData.role !== 'doctor' || !requesterData.companyId) {
+                return res.status(403).json({ success: false, error: 'Unauthorized: Cross-branch access denied' });
+            }
+
+            // Add companyId filter to the query below
+            const snap = await db.collection('prescriptions')
+                .where('patientId', '==', patientId)
+                .where('companyId', '==', requesterData.companyId)
+                .orderBy('createdAt', 'desc')
+                .limit(50)
+                .get();
+
+            const prescriptions = [];
+            for (const doc of snap.docs) {
+                prescriptions.push(doc.data());
+            }
+            return res.json({ success: true, prescriptions });
+        }
+
         const snap = await db.collection('prescriptions')
             .where('patientId', '==', patientId)
             .orderBy('createdAt', 'desc')
