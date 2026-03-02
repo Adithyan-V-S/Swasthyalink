@@ -25,6 +25,7 @@ const AdminDashboard = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [branchInfo, setBranchInfo] = useState({ name: "Loading Branch...", id: null });
   const [presetAdmin, setPresetAdmin] = useState(localStorage.getItem('presetAdmin') === 'true');
   const [storageMode, setStorageMode] = useState('checking'); // 'firestore', 'localStorage', 'checking'
   const [patients, setPatients] = useState([]);
@@ -42,16 +43,30 @@ const AdminDashboard = () => {
 
   // Calculate analytics based on real data
   const calculateAnalytics = () => {
-    const totalDoctors = doctors.length;
-    const totalPatients = patients.length;
+    // Filter data by current branch
+    const branchDoctors = doctors.filter(d =>
+      !branchInfo.id ||
+      d.branchId === branchInfo.id ||
+      !d.branchId || // Show unassigned doctors too for now
+      d.id.startsWith('DOC_SAMPLE')
+    );
+    const branchPatients = patients.filter(p =>
+      !branchInfo.id ||
+      p.branchId === branchInfo.id ||
+      !p.branchId || // Show unassigned patients too
+      p.id.startsWith('PAT_')
+    );
+
+    const totalDoctors = branchDoctors.length;
+    const totalPatients = branchPatients.length;
 
     // Generate some realistic analytics based on actual data
     const totalRevenue = totalPatients * 150 + totalDoctors * 500; // Estimated revenue
     const appointments = Math.floor(totalPatients * 0.3); // 30% of patients have appointments today
 
-    // Calculate growth rates (mock data for now, but could be real if you track historical data)
-    const patientGrowth = totalPatients > 0 ? Math.floor(Math.random() * 15) + 5 : 0;
-    const revenueGrowth = totalRevenue > 0 ? Math.floor(Math.random() * 20) + 8 : 0;
+    // Calculate growth rates
+    const patientGrowth = totalPatients > 0 ? 12 : 0;
+    const revenueGrowth = totalRevenue > 0 ? 8 : 0;
 
     setAnalytics({
       totalPatients,
@@ -130,9 +145,9 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    // Calculate analytics whenever doctors or patients data changes
+    // Calculate analytics whenever doctors, patients, or branch info changes
     calculateAnalytics();
-  }, [doctors, patients]);
+  }, [doctors, patients, branchInfo]);
 
   useEffect(() => {
     const presetAdmin = localStorage.getItem('presetAdmin') === 'true';
@@ -184,13 +199,15 @@ const AdminDashboard = () => {
       signInAnonymously(auth)
         .then((userCredential) => {
           console.log("Anonymous sign-in successful:", userCredential.user.uid);
-          setCurrentUser({
+          const mockUser = {
             uid: userCredential.user.uid,
             email: "admin@gmail.com",
             isAnonymous: true
-          });
+          };
+          setCurrentUser(mockUser);
           setLoading(false);
-          fetchData();
+          fetchBranchInfo(mockUser);
+          fetchData(mockUser);
         })
         .catch((error) => {
           console.error("Anonymous sign-in failed:", error);
@@ -202,11 +219,13 @@ const AdminDashboard = () => {
     // Regular Firebase auth check
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const userDoc = await getDocs(collection(db, "users"));
-        const userData = userDoc.docs.find(doc => doc.data().uid === user.uid);
-        if (userData && userData.data().role === "admin") {
-          setCurrentUser(user);
-          fetchData();
+        const userDocSnapshot = await getDocs(collection(db, "users"));
+        const userDoc = userDocSnapshot.docs.find(doc => doc.data().uid === user.uid);
+        if (userDoc && userDoc.data().role === "admin") {
+          const userData = { ...user, ...userDoc.data() };
+          setCurrentUser(userData);
+          fetchBranchInfo(userData);
+          fetchData(userData);
         } else {
           setLoading(false);
         }
@@ -218,7 +237,29 @@ const AdminDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  const fetchData = async () => {
+  const fetchBranchInfo = async (user) => {
+    try {
+      console.log("🔍 Resolving branch identity for user:", user?.email);
+      let targetBranchId = user?.branchId;
+
+      const branchesSnapshot = await getDocs(collection(db, "hospital_branches"));
+      const allBranches = branchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if (allBranches.length > 0) {
+        // If user has a branchId, use it. Otherwise, use the first one for testing/demo.
+        const activeBranch = allBranches.find(b => b.id === targetBranchId) || allBranches[0];
+        setBranchInfo({ name: activeBranch.name, id: activeBranch.id, ...activeBranch });
+        console.log("✅ Branch linked:", activeBranch.name, "(", activeBranch.id, ")");
+      } else {
+        setBranchInfo({ name: "No Active Branch", id: null });
+      }
+    } catch (error) {
+      console.error("Error fetching branch info:", error);
+      setBranchInfo({ name: "Kottayam Branch (Offline)", id: "kottayam-001" });
+    }
+  };
+
+  const fetchData = async (user = currentUser) => {
     try {
       setLoading(true);
 
@@ -251,9 +292,12 @@ const AdminDashboard = () => {
         const staffData = staffSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setStaff(staffData);
 
-        // Fetch pharmacy items
-        const pharmacySnapshot = await getDocs(collection(db, "pharmacy"));
-        const pharmacyData = pharmacySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Fetch pharmacy staff
+        const pharmacySnapshot = await getDocs(collection(db, "users"));
+        const pharmacyData = pharmacySnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(user => user.role === "pharmacy" && !user.isDisabled);
+        console.log("Fetched pharmacy staff from Firestore:", pharmacyData);
         setPharmacy(pharmacyData);
 
         // Fetch all users for user management (filter out disabled ones)
@@ -423,6 +467,8 @@ const AdminDashboard = () => {
       specialization: formData.specialization.trim(),
       license: formData.license.trim(),
       phone: formData.phone.trim(),
+      branchId: branchInfo.id,
+      companyId: "abc-hospital-group", // Linked to the group
       role: "doctor",
       status: "active",
       createdAt: new Date().toISOString(),
@@ -467,6 +513,8 @@ const AdminDashboard = () => {
           name: newDoctor.name,
           email: newDoctor.email,
           role: 'doctor',
+          branchId: branchInfo.id,
+          companyId: "abc-hospital-group",
           // Demo-only: persist generated password so admin can copy it later
           generatedPassword: password,
           specialization: newDoctor.specialization,
@@ -749,11 +797,14 @@ const AdminDashboard = () => {
         name: formData.name.trim(),
         email: email,
         role: 'nurse',
+        branchId: branchInfo.id,
+        companyId: 'abc-hospital-group',
         department: formData.department || 'General',
         phone: formData.phone.trim(),
         status: 'active',
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        emailVerified: true
       };
 
       await setDoc(doc(db, "users", firebaseUser.uid), nurseData);
@@ -777,9 +828,74 @@ const AdminDashboard = () => {
       });
       setShowAddForm(false);
       fetchData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddPharmacist = async (e) => {
+    e.preventDefault();
+
+    if (!formData.name || !formData.email || !formData.phone || !formData.password) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    if (storageMode === 'localStorage') {
+      const mockPharmacy = JSON.parse(localStorage.getItem('mockPharmacy') || '[]');
+      const newPharmacist = {
+        id: `PHARM_MOCK_${Date.now()}`,
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        role: 'pharmacy',
+        branchId: branchInfo.id,
+        phone: formData.phone.trim(),
+        status: 'active',
+        createdAt: new Date().toISOString()
+      };
+      mockPharmacy.push(newPharmacist);
+      localStorage.setItem('mockPharmacy', JSON.stringify(mockPharmacy));
+      alert(`Pharmacy Staff added successfully (Demo Mode)!`);
+      resetForm();
+      setShowAddForm(false);
+      fetchData();
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const email = formData.email.trim().toLowerCase();
+      const password = formData.password;
+
+      console.log('🚀 Creating pharmacy staff account:', { email });
+
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      const pharmacistData = {
+        uid: firebaseUser.uid,
+        name: formData.name.trim(),
+        email: email,
+        role: 'pharmacy',
+        branchId: branchInfo.id,
+        companyId: 'abc-hospital-group',
+        phone: formData.phone.trim(),
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        emailVerified: true
+      };
+
+      await setDoc(doc(db, "users", firebaseUser.uid), pharmacistData);
+
+      alert(`Pharmacy Staff added successfully!\nEmail: ${email}`);
+
+      resetForm();
+      setShowAddForm(false);
+      fetchData();
     } catch (error) {
-      console.error("Error adding nurse:", error);
-      alert(`Error adding nurse: ${error.message}`);
+      console.error("Error adding pharmacist:", error);
+      alert(`Error adding pharmacy staff: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -798,12 +914,15 @@ const AdminDashboard = () => {
       department: member.department || ""
     });
     setShowAddForm(true);
-    setActiveTab("staff");
+    // Don't change activeTab here, stay where we are (staff or pharmacy tab)
   };
 
   const handleUpdateNurse = async (e) => {
     e.preventDefault();
     if (!editingItem) return;
+
+    const currentRole = (editingItem.role || '').toLowerCase().trim();
+    const roleLabel = currentRole === 'pharmacy' ? 'Pharmacist' : 'Nurse Staff';
 
     try {
       setLoading(true);
@@ -816,14 +935,14 @@ const AdminDashboard = () => {
 
       if (storageMode === 'firestore') {
         const userUid = editingItem.uid || editingItem.nurseId;
-        console.log("Updating nurse in Firestore. User UID:", userUid, "Staff ID:", editingItem.id);
+        console.log(`Updating ${currentRole} in Firestore. User UID:`, userUid, "Staff ID:", editingItem.id);
 
         let userDocRef = null;
         if (userUid) {
           userDocRef = doc(db, "users", userUid);
         } else {
           // Fallback: Try to find user by email if UID is missing
-          console.warn("Nurse UID missing, searching users collection by email...");
+          console.warn(`${roleLabel} UID missing, searching users collection by email...`);
           const usersRef = collection(db, "users");
           const q = query(usersRef, where("email", "==", editingItem.email));
           const querySnapshot = await getDocs(q);
@@ -843,24 +962,31 @@ const AdminDashboard = () => {
           }
         }
 
-        // Update the staff document itself
-        await updateDoc(doc(db, "staff", editingItem.id), updateData);
-        console.log("Successfully updated staff collection");
+        // Only update the staff document if this is a nurse/general staff, 
+        // not a pharmacist (pharmacists only exist in 'users' collection)
+        if (currentRole !== 'pharmacy') {
+          await updateDoc(doc(db, "staff", editingItem.id), updateData);
+          console.log("Successfully updated staff collection");
+        } else {
+          console.log("Skipping staff collection update for pharmacist role");
+        }
       } else {
-        const mockStaff = JSON.parse(localStorage.getItem('mockStaff') || '[]');
-        const updatedStaff = mockStaff.map(s => (s.id === editingItem.id) ? { ...s, ...updateData } : s);
-        localStorage.setItem('mockStaff', JSON.stringify(updatedStaff));
+        const role = currentRole;
+        const storageKey = role === 'pharmacy' ? 'mockPharmacy' : 'mockStaff';
+        const mockData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        const updatedData = mockData.map(item => (item.id === editingItem.id) ? { ...item, ...updateData } : item);
+        localStorage.setItem(storageKey, JSON.stringify(updatedData));
       }
 
-      alert('Nurse Staff updated successfully!');
+      alert(`✨ ${roleLabel} updated successfully!`);
       setShowAddForm(false);
       setIsEditing(false);
       setEditingItem(null);
       resetForm();
       fetchData();
     } catch (error) {
-      console.error("Error updating nurse:", error);
-      alert(`Error updating nurse: ${error.message}`);
+      console.error(`Error updating ${editingItem.role}:`, error);
+      alert(`Error updating ${editingItem.role}: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -888,9 +1014,11 @@ const AdminDashboard = () => {
         updatedAt: new Date().toISOString()
       };
 
+      const roleLabel = member.role === 'pharmacy' ? 'Pharmacist' : 'Nurse Staff';
+
       if (storageMode === 'firestore') {
         const userUid = member.uid || member.nurseId;
-        console.log("Disabling nurse. User UID:", userUid, "Staff ID:", member.id);
+        console.log(`Disabling ${member.role}. User UID:`, userUid, "Staff ID:", member.id);
 
         let userDocRef = null;
         if (userUid) {
@@ -907,18 +1035,23 @@ const AdminDashboard = () => {
         if (userDocRef) {
           await updateDoc(userDocRef, updateData);
         }
-        // Update the staff record too
-        await updateDoc(doc(db, "staff", member.id), updateData);
+
+        // Only update 'staff' collection if it's not a pharmacist
+        if (member.role !== 'pharmacy') {
+          await updateDoc(doc(db, "staff", member.id), updateData);
+        }
       } else {
-        const mockStaff = JSON.parse(localStorage.getItem('mockStaff') || '[]');
-        const updatedStaff = mockStaff.map(s => s.id === member.id ? { ...s, ...updateData } : s);
-        localStorage.setItem('mockStaff', JSON.stringify(updatedStaff));
+        const role = member.role;
+        const storageKey = role === 'pharmacy' ? 'mockPharmacy' : 'mockStaff';
+        const mockData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        const updatedData = mockData.map(item => item.id === member.id ? { ...item, ...updateData } : item);
+        localStorage.setItem(storageKey, JSON.stringify(updatedData));
       }
 
-      alert('Access removed successfully.');
+      alert(`${roleLabel} access removed successfully.`);
       fetchData();
     } catch (error) {
-      console.error("Error disabling nurse:", error);
+      console.error(`Error disabling ${member.role}:`, error);
       alert(`Error: ${error.message}`);
     } finally {
       setLoading(false);
@@ -939,7 +1072,11 @@ const AdminDashboard = () => {
         handleAddNurse(e);
       }
     } else if (activeTab === "pharmacy") {
-      handleAddPharmacyItem(e);
+      if (isEditing) {
+        handleUpdateNurse(e); // Use shared update logic
+      } else {
+        handleAddPharmacist(e);
+      }
     }
   };
 
@@ -972,8 +1109,9 @@ const AdminDashboard = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                 </svg>
               </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Swasthyalink Admin
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent flex flex-col">
+                <span className="text-xs uppercase tracking-widest text-blue-400/80 mb-0.5">Hospital Branch Admin</span>
+                <span>{branchInfo.name}</span>
               </h1>
               {storageMode === 'localStorage' && (
                 <div className="mt-1 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-900 text-yellow-200 border border-yellow-700">
@@ -1227,9 +1365,9 @@ const AdminDashboard = () => {
                         {activeTab === "pharmacy" && (
                           <>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Quantity</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Price</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Category</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Role</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Phone</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
                           </>
                         )}
@@ -1374,27 +1512,23 @@ const AdminDashboard = () => {
                           </td>
                         </tr>
                       ))}
-                      {activeTab === "pharmacy" && pharmacy.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-700">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{item.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{item.quantity}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${item.price}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{item.category}</td>
+                      {activeTab === "pharmacy" && pharmacy.map((member) => (
+                        <tr key={member.id} className="hover:bg-gray-700">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{member.name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.email}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">Pharmacist</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.phone}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-3">
                               <button
-                                onClick={() => console.log('Edit pharmacy item:', item)}
-                                className="text-gray-400 cursor-not-allowed transition-colors"
-                                disabled
-                                title="Edit functionality coming soon"
+                                onClick={() => handleEditStaff(member)}
+                                className="text-blue-400 hover:text-blue-300 transition-colors"
                               >
                                 Edit
                               </button>
                               <button
-                                onClick={() => handleDeleteDoctor(item.id)}
-                                className="text-gray-400 cursor-not-allowed transition-colors"
-                                disabled
-                                title="Delete functionality coming soon"
+                                onClick={() => handleDeleteDoctor(member.id)}
+                                className="text-red-400 hover:text-red-300 transition-colors"
                               >
                                 Delete
                               </button>
@@ -1417,7 +1551,10 @@ const AdminDashboard = () => {
           <div className="relative top-20 mx-auto p-8 border w-96 shadow-2xl rounded-xl bg-gray-800 border-gray-700">
             <div className="mt-3">
               <h3 className="text-xl font-bold text-white mb-6">
-                {isEditing ? `Edit ${activeTab === 'staff' ? 'Nurse Staff' : activeTab.slice(0, -1)}` : `Add ${activeTab === 'staff' ? 'Nurse Staff' : activeTab.slice(0, -1)}`}
+                {isEditing
+                  ? `Edit ${activeTab === 'staff' ? 'Nurse Staff' : (activeTab === 'pharmacy' ? 'Pharmacist' : activeTab.slice(0, -1))}`
+                  : `Add ${activeTab === 'staff' ? 'Nurse Staff' : (activeTab === 'pharmacy' ? 'Pharmacist' : activeTab.slice(0, -1))}`
+                }
               </h3>
               <form onSubmit={handleFormSubmit} className="space-y-6">
                 <div>
@@ -1451,7 +1588,7 @@ const AdminDashboard = () => {
                     )}
                   </div>
                 </div>
-                {activeTab === "doctors" && (
+                {(activeTab === "doctors" || activeTab === "staff" || activeTab === "pharmacy") && (
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
                     <input
@@ -1459,7 +1596,8 @@ const AdminDashboard = () => {
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter password or auto-generate"
+                      placeholder={isEditing ? "Leave blank to keep current password" : "Create password for staff"}
+                      required={!isEditing}
                     />
                   </div>
                 )}
@@ -1488,71 +1626,22 @@ const AdminDashboard = () => {
                   </>
                 )}
                 {activeTab === "staff" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-                      <input
-                        type="text"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder={isEditing ? "Leave blank to keep current password" : "Create password for nurse"}
-                        required={!isEditing}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Department</label>
-                      <select
-                        value={formData.department}
-                        onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      >
-                        <option value="">Select Department</option>
-                        <option value="Emergency">Emergency</option>
-                        <option value="ICU">ICU</option>
-                        <option value="OPD">OPD</option>
-                        <option value="Surgery">Surgery</option>
-                        <option value="General">General</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-                {activeTab === "pharmacy" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Quantity</label>
-                      <input
-                        type="number"
-                        value={formData.specialization}
-                        onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Price</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={formData.license}
-                        onChange={(e) => setFormData({ ...formData, license: e.target.value })}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
-                      <input
-                        type="text"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="e.g., Antibiotics, Painkillers"
-                        required
-                      />
-                    </div>
-                  </>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Department</label>
+                    <select
+                      value={formData.department}
+                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Select Department</option>
+                      <option value="Emergency">Emergency</option>
+                      <option value="ICU">ICU</option>
+                      <option value="OPD">OPD</option>
+                      <option value="Surgery">Surgery</option>
+                      <option value="General">General</option>
+                    </select>
+                  </div>
                 )}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
