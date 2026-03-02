@@ -93,6 +93,10 @@ const Login = () => {
               navigate("/patientdashboard");
             } else if (userData.role === "family") {
               navigate("/familydashboard");
+            } else if (userData.role === "pharmacy") {
+              navigate("/pharmacydashboard");
+            } else if (userData.role === "hospital_admin") {
+              navigate("/hospitaladmindashboard");
             } else {
               navigate("/patientdashboard"); // Default to patient dashboard
             }
@@ -177,6 +181,10 @@ const Login = () => {
           navigate("/patientdashboard");
         } else if (userData.role === "family") {
           navigate("/familydashboard");
+        } else if (userData.role === "pharmacy") {
+          navigate("/pharmacydashboard");
+        } else if (userData.role === "hospital_admin") {
+          navigate("/hospitaladmindashboard");
         } else {
           navigate("/patientdashboard"); // Default to patient dashboard
         }
@@ -290,13 +298,52 @@ const Login = () => {
       console.log("Preset admin credentials detected, redirecting to admin dashboard");
       setLoading(false);
       setPresetAdmin(true);
-      console.log("Preset admin set, attempting navigation...");
-      try {
-        navigate("/admindashboard");
-        console.log("Navigation to /admin completed");
-      } catch (error) {
-        console.error("Navigation error:", error);
-      }
+      localStorage.setItem('testUserRole', 'admin');
+      navigate("/admindashboard");
+      return;
+    }
+
+    // Preset Hospital Group Admin login
+    if (email === "hospitaladmin@gmail.com" && password === "admin123") {
+      console.log("Preset hospital admin credentials detected");
+      setLoading(false);
+      localStorage.setItem('testUserRole', 'hospital_admin');
+      localStorage.setItem('testUser', JSON.stringify({
+        uid: 'hospital_admin_1',
+        email: 'hospitaladmin@gmail.com',
+        displayName: 'Group Admin',
+        role: 'hospital_admin'
+      }));
+      // Force trigger storage event
+      window.dispatchEvent(new StorageEvent('storage', { key: 'testUserRole', newValue: 'hospital_admin' }));
+      navigate("/hospitaladmindashboard");
+      return;
+    }
+
+    // Preset Pharmacy Admin login
+    if (email === "pharmacy@gmail.com" && password === "admin123") {
+      setLoading(false);
+      localStorage.setItem('testUserRole', 'pharmacy');
+      const pharmacyUser = {
+        uid: 'pharmacy_admin_1',
+        email: 'pharmacy@gmail.com',
+        displayName: 'Pharmacy Admin',
+        role: 'pharmacy',
+        branchId: 'kottayam-001',
+        companyId: 'abc-hospital-group'
+      };
+      localStorage.setItem('testUser', JSON.stringify(pharmacyUser));
+
+      // Force trigger storage event
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'testUserRole',
+        newValue: 'pharmacy'
+      }));
+
+      // Add a small delay to ensure AuthContext state updates
+      setTimeout(() => {
+        navigate("/pharmacydashboard");
+      }, 100);
       return;
     }
 
@@ -660,6 +707,10 @@ const Login = () => {
             navigate("/nursedashboard");
           } else if (userData.role === 'admin') {
             navigate("/admindashboard");
+          } else if (userData.role === 'pharmacy') {
+            navigate("/pharmacydashboard");
+          } else if (userData.role === 'hospital_admin') {
+            navigate("/hospitaladmindashboard");
           } else {
             navigate("/patientdashboard");
           }

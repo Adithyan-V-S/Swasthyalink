@@ -371,11 +371,14 @@ const PatientDashboard = () => {
       const data = await response.json();
       console.log('✅ Family members fetched from API:', data);
 
-      if (data.success && data.network) {
-        console.log('👥 Real family members loaded:', data.network);
+      if (data.success && data.network && Array.isArray(data.network.members)) {
+        console.log('👥 Real family members loaded:', data.network.members);
+        setFamilyMembers(data.network.members);
+      } else if (data.success && Array.isArray(data.network)) {
+        // Fallback for older API structure
         setFamilyMembers(data.network);
       } else {
-        console.log('👥 No family members found in API response');
+        console.log('👥 No family members array found in API response');
         setFamilyMembers([]);
       }
 
@@ -719,7 +722,7 @@ const PatientDashboard = () => {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(familyMembers || []).map((member) => (
+          {Array.isArray(familyMembers) && familyMembers.map((member) => (
             <div key={member.uid || member.id} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
               <div className="flex items-center mb-4">
                 <img
@@ -789,7 +792,7 @@ const PatientDashboard = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-red-800 mb-4">Emergency Contacts</h3>
           <div className="space-y-3">
-            {(familyMembers || []).filter(m => m.isEmergencyContact).map((member) => (
+            {Array.isArray(familyMembers) && familyMembers.filter(m => m.isEmergencyContact).map((member) => (
               <div key={member.uid || member.id || `emergency-${member.email}`} className="flex items-center justify-between bg-white p-3 rounded border">
                 <div className="flex items-center">
                   <img src={member.photoURL || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=ef4444&color=fff&size=32`} alt={member.name} className="w-8 h-8 rounded-full mr-3" />
@@ -827,7 +830,7 @@ const PatientDashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {(familyMembers || []).map((member) => (
+              {Array.isArray(familyMembers) && familyMembers.map((member) => (
                 <tr key={member.uid || member.id || `table-${member.email}`} className="hover:bg-indigo-50 transition-colors">
                   <td className="px-4 py-2 border-b">
                     <div className="flex items-center">
@@ -960,12 +963,20 @@ const PatientDashboard = () => {
                     <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium text-gray-900 text-lg">{prescription.medication}</h4>
-                        <span className={`px-2 py-1 text-xs rounded-full font-medium ${prescription.status === 'Active' ? 'bg-green-100 text-green-800' :
-                          prescription.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                          {prescription.status}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`px-2 py-1 text-xs rounded-full font-medium ${prescription.status === 'Active' ? 'bg-green-100 text-green-800' :
+                            prescription.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                            {prescription.status}
+                          </span>
+                          {prescription.blockchainHash && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold border border-indigo-200">
+                              <span className="material-icons text-[12px]">verified_user</span>
+                              Ledger Verified
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Prescription Details */}
