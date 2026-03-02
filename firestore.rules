@@ -3,6 +3,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Allow all authenticated users (including anonymous) to read/write
     // This is for development/admin purposes
+    // Temporarily allow public read for testing the blockchain and multi-branch features
+    match /hospital_branches/{branch} {
+      allow read: if true;
+    }
+    match /health_ledger/{block} {
+      allow read: if true;
+    }
+    
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

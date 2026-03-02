@@ -42,6 +42,8 @@ const notificationService = require('./notifications');
 const presenceService = require('./presence');
 const otpFunctions = require('./otpFunctions');
 const adminService = require('./adminService');
+const blockchainService = require('./blockchainService');
+const hospitalManagement = require('./hospitalManagement');
 
 exports.analyzeReport = analyzeReport;
 exports.geminiChat = geminiChat;
@@ -146,3 +148,20 @@ exports.onFamilyRequestCreate = onDocumentCreated('familyRequests/{requestId}', 
 exports.adminLogin = adminService.adminLogin;
 exports.updateDoctorStatus = adminService.updateDoctorStatus;
 exports.disableDoctor = adminService.disableDoctor;
+
+// Blockchain functions
+exports.addMedicalBlock = onRequest({ cors: true }, async (req, res) => {
+    const medicalData = req.body;
+    const block = await blockchainService.addMedicalBlock(medicalData);
+    res.json({ success: true, block });
+});
+
+exports.verifyBlockchainIntegrity = onRequest({ cors: true }, async (req, res) => {
+    const result = await blockchainService.verifyChain();
+    res.json({ success: true, ...result });
+});
+
+// Hospital & Branch Management
+exports.createHospitalCompany = hospitalManagement.createHospitalCompany;
+exports.createHospitalBranch = hospitalManagement.createHospitalBranch;
+exports.assignUserToBranch = hospitalManagement.assignUserToBranch;
