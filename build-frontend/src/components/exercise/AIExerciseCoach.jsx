@@ -10,7 +10,7 @@ import { logPhysioSession, logInjuryRisk } from '../../services/physioService';
 const EXERCISE_DATA = {
     kneebend: {
         name: 'Knee Bend (Rehab)',
-        demoUrl: '/exercises/squat.png',
+        demoUrl: '/exercises/kneebend.png',
         instructions: 'Slowly bend your knee to a comfortable angle. Do not push past pain.',
         checks: ['depth', 'valgus']
     },
@@ -43,6 +43,12 @@ const EXERCISE_DATA = {
         demoUrl: '/exercises/lunge.png',
         instructions: 'Take a long step forward and lower your hips until both knees are bent at a 90-degree angle.',
         checks: ['depth', 'balance']
+    },
+    hand_stretch: {
+        name: 'Hand Stretching',
+        demoUrl: '/exercises/hand_stretch.png',
+        instructions: 'Spread your arms wide apart, then bring them together until your palms touch in front of you. This improves chest and arm flexibility.',
+        checks: ['clasp', 'alignment']
     }
 };
 
@@ -227,19 +233,17 @@ const AIExerciseCoach = () => {
     const analyzePose = useCallback((pose) => {
         if (!pose || !pose.keypoints || pose.keypoints.length === 0) {
             setFeedback("SEARCHING FOR PERSON...");
-            setIsSquatting(false); // Reset state if tracking lost
+            setIsSquatting(false);
             return;
         }
         const keypoints = pose.keypoints;
         const minConfidence = exerciseTypeRef.current === 'shoulder_raise' ? 0.4 : 0.5;
 
-        // --- Workout Mode Check ---
         if (workoutModeRef.current === 'workout' && countRef.current >= repTargetRef.current && !isRestingRef.current) {
             if (!summaryRef.current) handleWorkoutComplete();
             return;
         }
 
-        // Tracking points
         const leftHip = keypoints[11];
         const leftKnee = keypoints[13];
         const leftAnkle = keypoints[15];
@@ -247,7 +251,7 @@ const AIExerciseCoach = () => {
         const rightKnee = keypoints[14];
         const rightAnkle = keypoints[16];
 
-        // --- Injury Risk Prediction (Valgus Check) ---
+        // --- Injury Risk Prediction (Lower Body Focused) ---
         if (leftKnee.score > minConfidence && rightKnee.score > minConfidence && leftAnkle.score > minConfidence && rightAnkle.score > minConfidence) {
             const ankleDist = Math.abs(leftAnkle.x - rightAnkle.x);
             const kneeDist = Math.abs(leftKnee.x - rightKnee.x);
@@ -257,8 +261,6 @@ const AIExerciseCoach = () => {
                     injuryRiskRef.current = risk;
                     setInjuryRisk(risk);
                     speak("Warning: High injury risk. Your knees are collapsing inward.");
-
-                    // Asynchronously log risk to backend for patient monitoring
                     logInjuryRisk({ userId: 'patient123', riskLevel: 'High', message: 'Knee Valgus (Knees collapsing inward)', exerciseType: exerciseTypeRef.current }).catch(console.error);
                 }
             } else if (injuryRiskRef.current.level === 'High') {
@@ -268,153 +270,36 @@ const AIExerciseCoach = () => {
             }
         }
 
-        if (leftHip.score > minConfidence && leftKnee.score > minConfidence && leftAnkle.score > minConfidence) {
-            const rawKneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
+        // Logic branching by tracking requirements
+        const isUpperBodyOnly = ['shoulder_raise', 'arm_stretch', 'hand_stretch'].includes(exerciseTypeRef.current);
+        const isFullBody = ['pushup'].includes(exerciseTypeRef.current);
 
-            // Heavy Smoothing
-            const smoothKneeAngle = alpha * rawKneeAngle + (1 - alpha) * anglesRef.current.knee;
-            anglesRef.current.knee = smoothKneeAngle;
+        // --- Lower/Full Body Logic Section ---
+        if (!isUpperBodyOnly) {
+            if (leftHip.score > minConfidence && leftKnee.score > minConfidence && leftAnkle.score > minConfidence) {
+                const rawKneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
+                const smoothKneeAngle = alpha * rawKneeAngle + (1 - alpha) * anglesRef.current.knee;
+                anglesRef.current.knee = smoothKneeAngle;
 
-            // Debug Info Update (Sync ref first for loop, state second for UI)
-            const newDebug = {
-                kneeAngle: Math.round(smoothKneeAngle),
-                state: isSquattingRef.current ? 'Down' : 'Up',
-                confidence: Math.round(leftKnee.score * 100) / 100
-            };
-            debugInfoRef.current = newDebug;
-            setDebugInfo(newDebug);
+                const newDebug = {
+                    kneeAngle: Math.round(smoothKneeAngle),
+                    state: isSquattingRef.current ? 'Down' : 'Up',
+                    confidence: Math.round(leftKnee.score * 100) / 100
+                };
+                debugInfoRef.current = newDebug;
+                setDebugInfo(newDebug);
 
-            // Calculate torso angle (posture check)
-            let backStraight = true;
-            if (leftShoulder.score > minConfidence) {
-                const rawTorsoAngle = calculateAngle(leftShoulder, leftHip, leftKnee);
-                const smoothTorsoAngle = alpha * rawTorsoAngle + (1 - alpha) * anglesRef.current.torso;
-                anglesRef.current.torso = smoothTorsoAngle;
-
-                if (smoothTorsoAngle < 70) {
-                    setFeedback("Keep your back straight!");
-                    backStraight = false;
-                }
-            }
-
-            if (exerciseTypeRef.current === 'squat') {
-                // Precision Squat Logic: Depth check + Hip/Knee Ratio
-                const hipKneeDist = Math.abs(leftHip.y - leftKnee.y);
-                const kneeAnkleDist = Math.abs(leftKnee.y - leftAnkle.y);
-
-                // Down Trigger: < 95 degrees WITH depth validation
-                if (smoothKneeAngle < 95 && hipKneeDist < (kneeAnkleDist * 0.8)) {
-                    if (!isSquattingRef.current) {
-                        setIsSquatting(true);
-                        setFeedback("Perfect Depth! Hold...");
-                        speak("Target depth reached.");
-                        frameCounterRef.current = 0;
-                    }
-                }
-
-                // Up Trigger: > 165 degrees (STABLE RECOVERY)
-                if (smoothKneeAngle > 165) {
-                    if (isSquattingRef.current) {
-                        frameCounterRef.current += 1;
-                        if (frameCounterRef.current > 3) { // Require stability
-                            const now = Date.now();
-                            if (now - lastRepTimeRef.current > 1500) {
-                                setIsSquatting(false);
-                                setCount(prev => prev + 1);
-                                setLastRepTime(now);
-                                setFeedback("Elite Rep! +1");
-                                speak("Excellent form. Keep going.");
-                                frameCounterRef.current = 0;
-                            }
-                        }
-                    } else {
-                        frameCounterRef.current = 0;
-                        if (backStraight) setFeedback("Ready. Drive hips down.");
-                    }
-                }
-            } else if (exerciseTypeRef.current === 'pushup') {
-                const leftElbow = keypoints[7];
-                const leftWrist = keypoints[9];
-                if (leftShoulder.score > minConfidence && leftElbow.score > minConfidence && leftWrist.score > minConfidence) {
-                    const rawElbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
-                    const smoothElbowAngle = alpha * rawElbowAngle + (1 - alpha) * anglesRef.current.elbow;
-                    anglesRef.current.elbow = smoothElbowAngle;
-
-                    const newDebug = {
-                        kneeAngle: Math.round(smoothElbowAngle),
-                        state: isSquattingRef.current ? 'Down' : 'Up',
-                        confidence: Math.round(leftElbow.score * 100) / 100
-                    };
-                    debugInfoRef.current = newDebug;
-                    setDebugInfo(newDebug);
-
-                    let bodyLineOk = true;
-                    if (leftHip.score > minConfidence && leftKnee.score > minConfidence) {
-                        const lineAngle = calculateAngle(leftShoulder, leftHip, leftKnee);
-                        if (lineAngle < 160) {
-                            setFeedback("Keep your hips down!");
-                            bodyLineOk = false;
-                        }
-                    }
-
-                    if (smoothElbowAngle < 85) {
+                if (exerciseTypeRef.current === 'squat') {
+                    const hipKneeDist = Math.abs(leftHip.y - leftKnee.y);
+                    const kneeAnkleDist = Math.abs(leftKnee.y - leftAnkle.y);
+                    if (smoothKneeAngle < 95 && hipKneeDist < (kneeAnkleDist * 0.8)) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            setFeedback("Full Depth! Chest down.");
-                            speak("Full range of motion.");
+                            setFeedback("Perfect Depth! Hold...");
+                            speak("Target depth reached.");
                             frameCounterRef.current = 0;
                         }
                     }
-
-                    if (smoothElbowAngle > 160) {
-                        if (isSquattingRef.current) {
-                            frameCounterRef.current += 1;
-                            if (frameCounterRef.current > 3) {
-                                const now = Date.now();
-                                if (now - lastRepTimeRef.current > 1200) {
-                                    setIsSquatting(false);
-                                    setCount(prev => prev + 1);
-                                    setLastRepTime(now);
-                                    setFeedback("Sharp Rep! +1");
-                                    speak("One sharp rep. Good control.");
-                                    frameCounterRef.current = 0;
-                                }
-                            }
-                        } else {
-                            frameCounterRef.current = 0;
-                            if (bodyLineOk) setFeedback("Ready. Lower chest slowly.");
-                        }
-                    }
-                }
-            } else if (exerciseTypeRef.current === 'lunge') {
-                if (leftHip.score > minConfidence && leftKnee.score > minConfidence && leftAnkle.score > minConfidence) {
-                    const rawKneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
-                    const smoothKneeAngle = alpha * rawKneeAngle + (1 - alpha) * anglesRef.current.knee;
-                    anglesRef.current.knee = smoothKneeAngle;
-
-                    // Stability Distance Check (Avoid false triggers from shaking)
-                    const hipHeight = leftHip.y;
-                    const kneeHeight = leftKnee.y;
-                    const verticalDrop = Math.abs(kneeHeight - hipHeight);
-
-                    const newDebug = {
-                        kneeAngle: Math.round(smoothKneeAngle),
-                        state: isSquattingRef.current ? 'Lunge Down' : 'Standing',
-                        confidence: Math.round(leftKnee.score * 100) / 100
-                    };
-                    debugInfoRef.current = newDebug;
-                    setDebugInfo(newDebug);
-
-                    // Lunge depth requires BOTH angle < 105 AND significant vertical drop
-                    if (smoothKneeAngle < 105 && verticalDrop > 20) {
-                        if (!isSquattingRef.current) {
-                            setIsSquatting(true);
-                            setFeedback("Great Stance! Hold Depth.");
-                            speak("Good depth. Step back.");
-                            frameCounterRef.current = 0;
-                        }
-                    }
-
                     if (smoothKneeAngle > 165) {
                         if (isSquattingRef.current) {
                             frameCounterRef.current += 1;
@@ -424,183 +309,172 @@ const AIExerciseCoach = () => {
                                     setIsSquatting(false);
                                     setCount(prev => prev + 1);
                                     setLastRepTime(now);
-                                    setFeedback("Lunge Mastered! +1");
-                                    speak("Perfect step. Switch legs or repeat.");
+                                    setFeedback("Elite Rep! +1");
+                                    speak("Excellent form.");
                                     frameCounterRef.current = 0;
                                 }
                             }
                         } else {
                             frameCounterRef.current = 0;
-                            setFeedback("Ready. Take a controlled step.");
+                            setFeedback("Ready. Drive hips down.");
                         }
                     }
-                }
-            } else if (exerciseTypeRef.current === 'kneebend') {
-                if (smoothKneeAngle < 120) {
-                    if (!isSquattingRef.current) {
-                        setIsSquatting(true);
-                        setFeedback("Good bend. Hold carefully.");
-                        speak("Hold position.");
-                        frameCounterRef.current = 0;
-                    }
-                }
-                if (smoothKneeAngle > 165) {
-                    if (isSquattingRef.current) {
-                        frameCounterRef.current += 1;
-                        if (frameCounterRef.current > 3) {
-                            const now = Date.now();
-                            if (now - lastRepTimeRef.current > 1500) {
-                                setIsSquatting(false);
-                                setCount(prev => prev + 1);
-                                setLastRepTime(now);
-                                setFeedback("Rehab Rep Complete!");
-                                speak("Good repetition. Rest.");
+                } else if (exerciseTypeRef.current === 'pushup') {
+                    const leftElbow = keypoints[7];
+                    const leftWrist = keypoints[9];
+                    if (leftShoulder.score > minConfidence && leftElbow.score > minConfidence && leftWrist.score > minConfidence) {
+                        const rawElbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
+                        const smoothElbowAngle = alpha * rawElbowAngle + (1 - alpha) * anglesRef.current.elbow;
+                        anglesRef.current.elbow = smoothElbowAngle;
+                        if (smoothElbowAngle < 85) {
+                            if (!isSquattingRef.current) {
+                                setIsSquatting(true);
+                                setFeedback("Full Depth!");
                                 frameCounterRef.current = 0;
                             }
                         }
-                    } else {
-                        frameCounterRef.current = 0;
-                        setFeedback("Ready. Slowly bend your knee.");
+                        if (smoothElbowAngle > 160) {
+                            if (isSquattingRef.current) {
+                                frameCounterRef.current += 1;
+                                if (frameCounterRef.current > 3) {
+                                    const now = Date.now();
+                                    if (now - lastRepTimeRef.current > 1200) {
+                                        setIsSquatting(false);
+                                        setCount(prev => prev + 1);
+                                        setLastRepTime(now);
+                                        setFeedback("Sharp Rep!");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (exerciseTypeRef.current === 'lunge') {
+                    if (smoothKneeAngle < 105) {
+                        if (!isSquattingRef.current) {
+                            setIsSquatting(true);
+                            setFeedback("Great Stance!");
+                        }
+                    }
+                    if (smoothKneeAngle > 165) {
+                        if (isSquattingRef.current) {
+                            setIsSquatting(false);
+                            setCount(prev => prev + 1);
+                            setLastRepTime(Date.now());
+                        }
+                    }
+                } else if (exerciseTypeRef.current === 'kneebend') {
+                    if (smoothKneeAngle < 120) {
+                        if (!isSquattingRef.current) {
+                            setIsSquatting(true);
+                            setFeedback("Good bend.");
+                        }
+                    }
+                    if (smoothKneeAngle > 165) {
+                        if (isSquattingRef.current) {
+                            setIsSquatting(false);
+                            setCount(prev => prev + 1);
+                            setLastRepTime(Date.now());
+                        }
                     }
                 }
-            } else if (exerciseTypeRef.current === 'shoulder_raise') {
-                const leftWrist = keypoints[9];
-                const rightWrist = keypoints[10];
-                const leftShoulder = keypoints[5];
-                const rightShoulder = keypoints[6];
-                const leftHip = keypoints[11];
-                const rightHip = keypoints[13];
+            } else {
+                setFeedback("SYSTEM ERROR: JOINTS NOT VISIBLE. STEP BACK.");
+                setIsSquatting(false);
+            }
+        }
 
-                // Dual-side tracking: Find the arm with better visibility
-                const leftConf = (leftWrist.score + leftShoulder.score + leftHip.score) / 3;
-                const rightConf = (rightWrist.score + rightShoulder.score + rightHip.score) / 3;
+        // --- Upper Body Logic Section ---
+        if (isUpperBodyOnly || isFullBody) {
+            const leftWrist = keypoints[9];
+            const rightWrist = keypoints[10];
+            const leftElbow = keypoints[7];
+            const rightElbow = keypoints[8];
+            const leftShoulder = keypoints[5];
+            const rightShoulder = keypoints[6];
+            const head = keypoints[0];
 
-                let activeArm = 'left';
-                let wrist = leftWrist;
-                let shoulder = leftShoulder;
-                let hip = leftHip;
-                let conf = leftConf;
+            if (exerciseTypeRef.current === 'hand_stretch') {
+                if (leftWrist.score > minConfidence && rightWrist.score > minConfidence && leftShoulder.score > minConfidence) {
+                    const wristDist = Math.abs(leftWrist.x - rightWrist.x);
+                    const shoulderDist = Math.abs(leftShoulder.x - rightShoulder.x) || 100;
 
-                if (rightConf > leftConf + 0.1) {
-                    activeArm = 'right';
-                    wrist = rightWrist;
-                    shoulder = rightShoulder;
-                    hip = rightHip;
-                    conf = rightConf;
-                }
-
-                if (diagnosticsEnabled) {
-                    setJointConfidence(prev => ({
-                        ...prev,
-                        shoulder: Math.round(shoulder.score * 100),
-                        wrist: Math.round(wrist.score * 100),
-                        side: activeArm
-                    }));
-                }
-
-                // Loosened requirement: Just need shoulder and wrist to be clear
-                if (shoulder.score > minConfidence && wrist.score > minConfidence) {
-                    // Check arm height relative to shoulder (Frontal View Friendly)
-                    const verticalOffset = shoulder.y - wrist.y; // Positive if wrist is above/at shoulder height
-                    const shoulderToShoulder = Math.abs(rightShoulder.x - leftShoulder.x) || 50;
-                    const normalizedHeight = verticalOffset / shoulderToShoulder;
-
-                    // Smoothing
-                    const smoothHeight = alpha * normalizedHeight + (1 - alpha) * (anglesRef.current.torso || 0);
-                    anglesRef.current.torso = smoothHeight;
+                    // Relaxed closer threshold for palms together, strict wide threshold for the stretch
+                    const palmsTogether = wristDist < 80 && Math.abs(leftWrist.y - rightWrist.y) < 80;
+                    const armsWide = wristDist > shoulderDist * 2.1;
 
                     const newDebug = {
-                        kneeAngle: Math.round(smoothHeight * 100), // Reuse kneeAngle field for raw offset in debug
-                        state: isSquattingRef.current ? 'Holding' : 'Neutral',
-                        confidence: Math.round(conf * 100) / 100
+                        kneeAngle: Math.round(wristDist),
+                        state: isSquattingRef.current ? 'Ready for Palms' : 'Ready for Stretch',
+                        confidence: Math.round(leftWrist.score * 100) / 100
                     };
                     debugInfoRef.current = newDebug;
                     setDebugInfo(newDebug);
 
-                    // Parallel Trigger: Wrist is at or slightly below shoulder level
-                    if (smoothHeight > -0.2) {
+                    if (armsWide) {
+                        // User has fully stretched their arms.
                         if (!isSquattingRef.current) {
-                            setIsSquatting(true);
-                            setFeedback("Parallel! Hold 2 seconds.");
-                            speak("Good level. Hold there.");
-                            frameCounterRef.current = 0;
+                            setIsSquatting(true); // Active state: Waiting for palms to touch
+                            setFeedback("Great! Bring palms together.");
+                            speak("Now bring your palms together.");
+                        } else {
+                            setFeedback("Bring palms together to finish.");
                         }
-                    }
-
-                    // Reset threshold: Arm is down (normalized height is clearly negative)
-                    if (smoothHeight < -0.45) { // Reset threshold for clean reps
+                    } else if (palmsTogether) {
+                        // User has brought palms together.
                         if (isSquattingRef.current) {
-                            frameCounterRef.current += 1;
-                            if (frameCounterRef.current > 3) {
-                                const now = Date.now();
-                                if (now - lastRepTimeRef.current > 1500) {
-                                    setIsSquatting(false);
-                                    setCount(prev => prev + 1);
-                                    setLastRepTime(now);
-                                    setFeedback("Therapy Rep Complete!");
-                                    speak("Excellent control. Great rep.");
-                                    frameCounterRef.current = 0;
-                                }
+                            // Only count if they stretched wide first.
+                            const now = Date.now();
+                            if (now - lastRepTimeRef.current > 1000) {
+                                setIsSquatting(false); // Reset state
+                                setCount(prev => prev + 1);
+                                setLastRepTime(now);
+                                setFeedback("Perfect Rep! +1");
+                                speak("Good. Open arms wide again.");
                             }
                         } else {
-                            frameCounterRef.current = 0;
-                            setFeedback("Ready. Raise your " + activeArm + " arm.");
+                            // User brought palms together without stretching wide first.
+                            setFeedback("Spread your arms fully wide first.");
                         }
                     }
                 } else {
-                    if (conf < 0.4) {
-                        setFeedback("CAN'T SEE YOUR " + activeArm.toUpperCase() + " ARM.");
+                    setFeedback("SEARCHING FOR BOTH HANDS...");
+                }
+            } else if (exerciseTypeRef.current === 'shoulder_raise') {
+                if (leftShoulder.score > minConfidence && leftWrist.score > minConfidence) {
+                    const verticalOffset = leftShoulder.y - leftWrist.y;
+                    if (verticalOffset > 0) { // Wrist above shoulder
+                        if (!isSquattingRef.current) {
+                            setIsSquatting(true);
+                            setFeedback("Parallel! Hold.");
+                        }
+                    } else if (verticalOffset < -50) {
+                        if (isSquattingRef.current) {
+                            setIsSquatting(false);
+                            setCount(prev => prev + 1);
+                            setLastRepTime(Date.now());
+                        }
                     }
                 }
             } else if (exerciseTypeRef.current === 'arm_stretch') {
-                const leftWrist = keypoints[9];
-                const rightWrist = keypoints[10];
-                const rightShoulder = keypoints[6];
-                if (leftShoulder.score > minConfidence && rightShoulder.score > minConfidence && leftWrist.score > minConfidence && rightWrist.score > minConfidence) {
+                if (leftWrist.score > minConfidence && rightWrist.score > minConfidence) {
                     const wristDist = Math.abs(leftWrist.x - rightWrist.x);
-                    const shoulderDist = Math.abs(leftShoulder.x - rightShoulder.x);
-
+                    const shoulderDist = Math.abs(leftShoulder.x - rightShoulder.x) || 100;
                     if (wristDist > shoulderDist * 2.5) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
                             setFeedback("Full stretch active.");
-                            speak("Stretch held.");
-                            frameCounterRef.current = 0;
                         }
-                    }
-                    if (wristDist < shoulderDist * 1.5) {
+                    } else if (wristDist < shoulderDist * 1.5) {
                         if (isSquattingRef.current) {
-                            frameCounterRef.current += 1;
-                            if (frameCounterRef.current > 3) {
-                                const now = Date.now();
-                                if (now - lastRepTimeRef.current > 1500) {
-                                    setIsSquatting(false);
-                                    setCount(prev => prev + 1);
-                                    setLastRepTime(now);
-                                    setFeedback("Stretch Complete!");
-                                    speak("Good stretch.");
-                                    frameCounterRef.current = 0;
-                                }
-                            }
-                        } else {
-                            frameCounterRef.current = 0;
-                            setFeedback("Ready. Stretch arms outward.");
+                            setIsSquatting(false);
+                            setCount(prev => prev + 1);
+                            setLastRepTime(Date.now());
                         }
                     }
                 }
             }
-        } else {
-            // Biometric Validation: Check if too far or confidence too low
-            if (leftHip.score < 0.2 || leftKnee.score < 0.2) {
-                setFeedback("SYSTEM ERROR: JOINTS NOT VISIBLE. STEP BACK.");
-                speak("I can't see your hips or knees. Please step back to show your full body.");
-            } else {
-                setFeedback("SYSTEM ERROR: POOR VISIBILITY. CHECK LIGHTING.");
-                speak("I can see your frame but the tracking is unstable. Please check your lighting.");
-            }
-            setIsSquatting(false);
         }
-    }, [isMuted]); // Callback is now perfectly stable - only depends on muted state for 'speak'
+    }, [isMuted]);
 
     const handleWorkoutComplete = () => {
         setIsResting(false);
@@ -641,6 +515,7 @@ const AIExerciseCoach = () => {
                     if (poses.length > 0) {
                         const pose = poses[0];
                         analyzePose(pose);
+                        if (!canvasRef.current) return;
                         const ctx = canvasRef.current.getContext("2d");
                         if (ctx) {
                             ctx.clearRect(0, 0, videoWidth, videoHeight);
@@ -940,9 +815,10 @@ const AIExerciseCoach = () => {
                             <option value="kneebend">🦵 Knee Bend (Rehab)</option>
                             <option value="shoulder_raise">💪 Shoulder Raise</option>
                             <option value="arm_stretch">👐 Arm Stretch</option>
-                            <option value="squat">�️ Squats</option>
+                            <option value="squat">🏋️ Squats</option>
                             <option value="pushup">💪 Push-ups</option>
                             <option value="lunge">🦵 Lunges</option>
+                            <option value="hand_stretch">🖐️ Hand Stretching</option>
                         </select>
 
                         {/* Adjustable Rep Target (Premium Feature UI) */}
