@@ -31,6 +31,7 @@ const Sidebar = ({ open, onClose }) => {
         { to: "/familydashboard", label: "Family Access" },
         { to: "/report-analyzer", label: "Smart Reports" },
         { to: "/exercise-coach", label: "AI Coach" },
+        { to: "/eye-exercise", label: "👁️ Eye Exercises" },
         { to: "/settings", label: "Settings" },
       ],
     };

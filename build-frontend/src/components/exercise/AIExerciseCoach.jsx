@@ -4,14 +4,33 @@ import * as tf from '@tensorflow/tfjs';
 import * as poseDetection from '@tensorflow-models/pose-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import confetti from 'canvas-confetti';
+import { logPhysioSession, logInjuryRisk } from '../../services/physioService';
 
 // Exercise Database with Demonstration Content
 const EXERCISE_DATA = {
+    kneebend: {
+        name: 'Knee Bend (Rehab)',
+        demoUrl: '/exercises/squat.png',
+        instructions: 'Slowly bend your knee to a comfortable angle. Do not push past pain.',
+        checks: ['depth', 'valgus']
+    },
+    shoulder_raise: {
+        name: 'Shoulder Raise',
+        demoUrl: '/exercises/shoulder_raise.png',
+        instructions: 'Stand facing the camera. Raise your arm forward until it is parallel to the floor, hold for 2 seconds, then lower slowly.',
+        checks: ['height', 'shoulder_shrug']
+    },
+    arm_stretch: {
+        name: 'Arm Stretch',
+        demoUrl: '/exercises/lunge.png',
+        instructions: 'Extend your arms straight out. Keep a slight bend in the elbow.',
+        checks: ['extension']
+    },
     squat: {
         name: 'Squat',
         demoUrl: '/exercises/squat.png',
         instructions: 'Lower your hips until they are below your knees. Keep your back straight.',
-        checks: ['depth', 'posture']
+        checks: ['depth', 'posture', 'valgus']
     },
     pushup: {
         name: 'Push-up',
@@ -41,6 +60,7 @@ const AIExerciseCoach = () => {
     const [lastRepTime, setLastRepTime] = useState(0);
     const [mediaError, setMediaError] = useState(false);
     const lastSpokenRef = useRef("");
+    const [injuryRisk, setInjuryRisk] = useState({ level: 'Low', message: 'No significant risks detected.' });
 
     // --- Premium Workout Mode State ---
     const [isPremium, setIsPremium] = useState(false);
@@ -52,6 +72,8 @@ const AIExerciseCoach = () => {
     const [sessionStartTime, setSessionStartTime] = useState(null);
     const [accuracyStats, setAccuracyStats] = useState({ perfect: 0, total: 0 });
     const restTimerRef = useRef(null);
+    const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false);
+    const [jointConfidence, setJointConfidence] = useState({});
 
     // Dynamic Alpha for smoothing
     const alpha = 0.2;
@@ -94,6 +116,22 @@ const AIExerciseCoach = () => {
         loadModel();
     }, []);
 
+    // Reset Exercise State when switching
+    useEffect(() => {
+        setCount(0);
+        setIsSquatting(false);
+        frameCounterRef.current = 0;
+        // Reset angles to neutral defaults for specific exercises
+        anglesRef.current = {
+            knee: 180,
+            elbow: 180,
+            torso: exerciseType === 'shoulder_raise' ? -1 : 180
+        };
+        const name = EXERCISE_DATA[exerciseType]?.name || exerciseType;
+        setFeedback(`Ready for ${name}. Stand in view.`);
+        speak(`${name} selected. Let's begin.`);
+    }, [exerciseType]);
+
     // --- Celebration Effect ---
     useEffect(() => {
         if (showWorkoutSummary) {
@@ -128,14 +166,18 @@ const AIExerciseCoach = () => {
                 const { x, y } = keypoint;
                 ctx.beginPath();
                 ctx.arc(x, y, 5, 0, 2 * Math.PI);
-                ctx.fillStyle = '#6366f1';
+                ctx.fillStyle = '#818cf8'; // Brighter Indigo
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#818cf8';
                 ctx.fill();
             }
         });
 
         const adjacencies = poseDetection.util.getAdjacentPairs(poseDetection.SupportedModels.MoveNet);
-        ctx.strokeStyle = '#6366f1';
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#818cf8';
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = '#818cf8';
         adjacencies.forEach(([i, j]) => {
             const kp1 = keypoints[i];
             const kp2 = keypoints[j];
@@ -169,8 +211,10 @@ const AIExerciseCoach = () => {
     const frameCounterRef = useRef(0);
     const totalFramesRef = useRef(0);
     const [engineHeat, setEngineHeat] = useState(0);
+    const injuryRiskRef = useRef({ level: 'Low', message: 'No significant risks detected.' });
 
     // Sync refs for the high-frequency loop (Ultimate Stability Pattern)
+    useEffect(() => { injuryRiskRef.current = injuryRisk; }, [injuryRisk]);
     useEffect(() => { isRestingRef.current = isResting; }, [isResting]);
     useEffect(() => { summaryRef.current = showWorkoutSummary; }, [showWorkoutSummary]);
     useEffect(() => { countRef.current = count; }, [count]);
@@ -181,13 +225,13 @@ const AIExerciseCoach = () => {
     useEffect(() => { repTargetRef.current = repTarget; }, [repTarget]);
 
     const analyzePose = useCallback((pose) => {
-        if (!pose || !pose.keypoints) {
-            setFeedback("Make sure your full body is visible.");
+        if (!pose || !pose.keypoints || pose.keypoints.length === 0) {
+            setFeedback("SEARCHING FOR PERSON...");
             setIsSquatting(false); // Reset state if tracking lost
             return;
         }
         const keypoints = pose.keypoints;
-        const minConfidence = 0.5;
+        const minConfidence = exerciseTypeRef.current === 'shoulder_raise' ? 0.4 : 0.5;
 
         // --- Workout Mode Check ---
         if (workoutModeRef.current === 'workout' && countRef.current >= repTargetRef.current && !isRestingRef.current) {
@@ -195,11 +239,34 @@ const AIExerciseCoach = () => {
             return;
         }
 
-        // Squat points
+        // Tracking points
         const leftHip = keypoints[11];
         const leftKnee = keypoints[13];
         const leftAnkle = keypoints[15];
         const leftShoulder = keypoints[5];
+        const rightKnee = keypoints[14];
+        const rightAnkle = keypoints[16];
+
+        // --- Injury Risk Prediction (Valgus Check) ---
+        if (leftKnee.score > minConfidence && rightKnee.score > minConfidence && leftAnkle.score > minConfidence && rightAnkle.score > minConfidence) {
+            const ankleDist = Math.abs(leftAnkle.x - rightAnkle.x);
+            const kneeDist = Math.abs(leftKnee.x - rightKnee.x);
+            if (kneeDist < ankleDist * 0.7 && exerciseTypeRef.current !== 'lunge') {
+                if (injuryRiskRef.current.level !== 'High') {
+                    const risk = { level: 'High', message: 'Knee Valgus Detected! Keep knees aligned.' };
+                    injuryRiskRef.current = risk;
+                    setInjuryRisk(risk);
+                    speak("Warning: High injury risk. Your knees are collapsing inward.");
+
+                    // Asynchronously log risk to backend for patient monitoring
+                    logInjuryRisk({ userId: 'patient123', riskLevel: 'High', message: 'Knee Valgus (Knees collapsing inward)', exerciseType: exerciseTypeRef.current }).catch(console.error);
+                }
+            } else if (injuryRiskRef.current.level === 'High') {
+                const risk = { level: 'Low', message: 'Good posture maintained.' };
+                injuryRiskRef.current = risk;
+                setInjuryRisk(risk);
+            }
+        }
 
         if (leftHip.score > minConfidence && leftKnee.score > minConfidence && leftAnkle.score > minConfidence) {
             const rawKneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
@@ -368,15 +435,168 @@ const AIExerciseCoach = () => {
                         }
                     }
                 }
+            } else if (exerciseTypeRef.current === 'kneebend') {
+                if (smoothKneeAngle < 120) {
+                    if (!isSquattingRef.current) {
+                        setIsSquatting(true);
+                        setFeedback("Good bend. Hold carefully.");
+                        speak("Hold position.");
+                        frameCounterRef.current = 0;
+                    }
+                }
+                if (smoothKneeAngle > 165) {
+                    if (isSquattingRef.current) {
+                        frameCounterRef.current += 1;
+                        if (frameCounterRef.current > 3) {
+                            const now = Date.now();
+                            if (now - lastRepTimeRef.current > 1500) {
+                                setIsSquatting(false);
+                                setCount(prev => prev + 1);
+                                setLastRepTime(now);
+                                setFeedback("Rehab Rep Complete!");
+                                speak("Good repetition. Rest.");
+                                frameCounterRef.current = 0;
+                            }
+                        }
+                    } else {
+                        frameCounterRef.current = 0;
+                        setFeedback("Ready. Slowly bend your knee.");
+                    }
+                }
+            } else if (exerciseTypeRef.current === 'shoulder_raise') {
+                const leftWrist = keypoints[9];
+                const rightWrist = keypoints[10];
+                const leftShoulder = keypoints[5];
+                const rightShoulder = keypoints[6];
+                const leftHip = keypoints[11];
+                const rightHip = keypoints[13];
+
+                // Dual-side tracking: Find the arm with better visibility
+                const leftConf = (leftWrist.score + leftShoulder.score + leftHip.score) / 3;
+                const rightConf = (rightWrist.score + rightShoulder.score + rightHip.score) / 3;
+
+                let activeArm = 'left';
+                let wrist = leftWrist;
+                let shoulder = leftShoulder;
+                let hip = leftHip;
+                let conf = leftConf;
+
+                if (rightConf > leftConf + 0.1) {
+                    activeArm = 'right';
+                    wrist = rightWrist;
+                    shoulder = rightShoulder;
+                    hip = rightHip;
+                    conf = rightConf;
+                }
+
+                if (diagnosticsEnabled) {
+                    setJointConfidence(prev => ({
+                        ...prev,
+                        shoulder: Math.round(shoulder.score * 100),
+                        wrist: Math.round(wrist.score * 100),
+                        side: activeArm
+                    }));
+                }
+
+                // Loosened requirement: Just need shoulder and wrist to be clear
+                if (shoulder.score > minConfidence && wrist.score > minConfidence) {
+                    // Check arm height relative to shoulder (Frontal View Friendly)
+                    const verticalOffset = shoulder.y - wrist.y; // Positive if wrist is above/at shoulder height
+                    const shoulderToShoulder = Math.abs(rightShoulder.x - leftShoulder.x) || 50;
+                    const normalizedHeight = verticalOffset / shoulderToShoulder;
+
+                    // Smoothing
+                    const smoothHeight = alpha * normalizedHeight + (1 - alpha) * (anglesRef.current.torso || 0);
+                    anglesRef.current.torso = smoothHeight;
+
+                    const newDebug = {
+                        kneeAngle: Math.round(smoothHeight * 100), // Reuse kneeAngle field for raw offset in debug
+                        state: isSquattingRef.current ? 'Holding' : 'Neutral',
+                        confidence: Math.round(conf * 100) / 100
+                    };
+                    debugInfoRef.current = newDebug;
+                    setDebugInfo(newDebug);
+
+                    // Parallel Trigger: Wrist is at or slightly below shoulder level
+                    if (smoothHeight > -0.2) {
+                        if (!isSquattingRef.current) {
+                            setIsSquatting(true);
+                            setFeedback("Parallel! Hold 2 seconds.");
+                            speak("Good level. Hold there.");
+                            frameCounterRef.current = 0;
+                        }
+                    }
+
+                    // Reset threshold: Arm is down (normalized height is clearly negative)
+                    if (smoothHeight < -0.45) { // Reset threshold for clean reps
+                        if (isSquattingRef.current) {
+                            frameCounterRef.current += 1;
+                            if (frameCounterRef.current > 3) {
+                                const now = Date.now();
+                                if (now - lastRepTimeRef.current > 1500) {
+                                    setIsSquatting(false);
+                                    setCount(prev => prev + 1);
+                                    setLastRepTime(now);
+                                    setFeedback("Therapy Rep Complete!");
+                                    speak("Excellent control. Great rep.");
+                                    frameCounterRef.current = 0;
+                                }
+                            }
+                        } else {
+                            frameCounterRef.current = 0;
+                            setFeedback("Ready. Raise your " + activeArm + " arm.");
+                        }
+                    }
+                } else {
+                    if (conf < 0.4) {
+                        setFeedback("CAN'T SEE YOUR " + activeArm.toUpperCase() + " ARM.");
+                    }
+                }
+            } else if (exerciseTypeRef.current === 'arm_stretch') {
+                const leftWrist = keypoints[9];
+                const rightWrist = keypoints[10];
+                const rightShoulder = keypoints[6];
+                if (leftShoulder.score > minConfidence && rightShoulder.score > minConfidence && leftWrist.score > minConfidence && rightWrist.score > minConfidence) {
+                    const wristDist = Math.abs(leftWrist.x - rightWrist.x);
+                    const shoulderDist = Math.abs(leftShoulder.x - rightShoulder.x);
+
+                    if (wristDist > shoulderDist * 2.5) {
+                        if (!isSquattingRef.current) {
+                            setIsSquatting(true);
+                            setFeedback("Full stretch active.");
+                            speak("Stretch held.");
+                            frameCounterRef.current = 0;
+                        }
+                    }
+                    if (wristDist < shoulderDist * 1.5) {
+                        if (isSquattingRef.current) {
+                            frameCounterRef.current += 1;
+                            if (frameCounterRef.current > 3) {
+                                const now = Date.now();
+                                if (now - lastRepTimeRef.current > 1500) {
+                                    setIsSquatting(false);
+                                    setCount(prev => prev + 1);
+                                    setLastRepTime(now);
+                                    setFeedback("Stretch Complete!");
+                                    speak("Good stretch.");
+                                    frameCounterRef.current = 0;
+                                }
+                            }
+                        } else {
+                            frameCounterRef.current = 0;
+                            setFeedback("Ready. Stretch arms outward.");
+                        }
+                    }
+                }
             }
         } else {
             // Biometric Validation: Check if too far or confidence too low
             if (leftHip.score < 0.2 || leftKnee.score < 0.2) {
-                setFeedback("System Error: Poor Visibility. Check Lighting.");
-                speak("I can't see your joints clearly. Check your lighting.");
+                setFeedback("SYSTEM ERROR: JOINTS NOT VISIBLE. STEP BACK.");
+                speak("I can't see your hips or knees. Please step back to show your full body.");
             } else {
-                setFeedback("Move closer to the camera.");
-                speak("Please step back slightly to show your full body.");
+                setFeedback("SYSTEM ERROR: POOR VISIBILITY. CHECK LIGHTING.");
+                speak("I can see your frame but the tracking is unstable. Please check your lighting.");
             }
             setIsSquatting(false);
         }
@@ -385,6 +605,8 @@ const AIExerciseCoach = () => {
     const handleWorkoutComplete = () => {
         setIsResting(false);
         setShowWorkoutSummary(true);
+        // Log the completed session to the clinical dashboard
+        logPhysioSession({ userId: 'patient123', exerciseType: exerciseTypeRef.current, reps: countRef.current, duration: 300, accuracy: 100 }).catch(console.error);
         // Confetti logic will be added here
     };
 
@@ -423,11 +645,6 @@ const AIExerciseCoach = () => {
                         if (ctx) {
                             ctx.clearRect(0, 0, videoWidth, videoHeight);
                             drawPose(pose, ctx);
-                            // Draw Debug Overlay from Ref (NOT state to avoid thrashing)
-                            ctx.font = "20px Arial";
-                            ctx.fillStyle = "yellow";
-                            ctx.fillText(`Knee: ${debugInfoRef.current.kneeAngle}°`, 10, 30);
-                            ctx.fillText(`State: ${debugInfoRef.current.state}`, 10, 60);
                         }
                     }
                     totalFramesRef.current++;
@@ -464,8 +681,8 @@ const AIExerciseCoach = () => {
                         </svg>
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">AI Exercise Coach</h1>
-                        <p className="text-gray-400">Professional guidance in real-time</p>
+                        <h1 className="text-3xl font-bold tracking-tight">AI Physiotherapy Assistant</h1>
+                        <p className="text-gray-400">Clinical-grade injury risk prevention & tracking</p>
                     </div>
                 </div>
 
@@ -478,6 +695,16 @@ const AIExerciseCoach = () => {
                                 <span className="text-2xl text-slate-600 font-bold ml-1">/ {repTarget}</span>
                             )}
                         </div>
+                    </div>
+
+                    <div className="hidden lg:flex flex-col items-end px-6 border-l border-slate-800">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Injury Risk</span>
+                        <div className={`text-xl font-black ${injuryRisk.level === 'High' ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>
+                            {injuryRisk.level}
+                        </div>
+                        {injuryRisk.message && injuryRisk.level === 'High' && (
+                            <span className="text-[10px] text-red-400 max-w-[120px] text-right mt-1 font-bold">{injuryRisk.message}</span>
+                        )}
                     </div>
 
                     <div className="hidden lg:flex flex-col items-center px-6 border-l border-slate-800">
@@ -531,6 +758,19 @@ const AIExerciseCoach = () => {
                             ) : (
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
                             )}
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setDiagnosticsEnabled(!diagnosticsEnabled);
+                                speak(diagnosticsEnabled ? "Diagnostics disabled." : "Diagnostic diagnostic mode active.");
+                            }}
+                            className={`p-4 rounded-2xl transition-all ${diagnosticsEnabled ? 'bg-indigo-600 shadow-lg shadow-indigo-600/30 text-white' : 'bg-slate-800 text-gray-300 hover:bg-slate-700'}`}
+                            title="Toggle Diagnostics"
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -624,11 +864,12 @@ const AIExerciseCoach = () => {
                             <Webcam
                                 ref={webcamRef}
                                 mirrored={true}
-                                className="absolute inset-0 w-full h-full object-cover grayscale opacity-40"
+                                className="absolute inset-0 w-full h-full object-cover opacity-80"
                             />
                             <canvas
                                 ref={canvasRef}
                                 className="absolute inset-0 w-full h-full object-cover z-20"
+                                style={{ transform: 'scaleX(-1)' }}
                             />
 
                             {/* Dynamic Feedback Overlay */}
@@ -639,12 +880,48 @@ const AIExerciseCoach = () => {
                                         ? 'bg-yellow-500/20 border-yellow-500/50 scale-100'
                                         : 'bg-indigo-500/20 border-indigo-500/50 scale-100'
                                     }`}>
-                                    <p className={`text-2xl font-black text-center ${feedback.includes('Great') || feedback.includes('Good') ? 'text-green-400' : 'text-white'
+                                    <p className={`text-2xl font-black text-center ${feedback.includes('Great') || feedback.includes('Good') || feedback.includes('Parallel') || feedback.includes('Complete') ? 'text-green-400' : 'text-white'
                                         }`}>
                                         {feedback.toUpperCase()}
                                     </p>
                                 </div>
                             </div>
+
+                            {/* Diagnostic Panel Overlay */}
+                            {diagnosticsEnabled && (
+                                <div className="absolute top-4 right-4 z-[40] w-48 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl p-4 shadow-2xl animate-in slide-in-from-right duration-300">
+                                    <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+                                        AI Diagnostics
+                                    </h4>
+                                    <div className="space-y-4">
+                                        {Object.entries(jointConfidence).filter(([k]) => k !== 'side').map(([joint, conf]) => (
+                                            <div key={joint}>
+                                                <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase mb-1">
+                                                    <span>{joint}</span>
+                                                    <span className={conf > 70 ? 'text-green-400' : conf > 40 ? 'text-yellow-400' : 'text-red-400'}>{conf}%</span>
+                                                </div>
+                                                <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full transition-all duration-500 ${conf > 70 ? 'bg-green-500' : conf > 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                                        style={{ width: `${conf}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div className="pt-2 border-t border-slate-800">
+                                            <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase">
+                                                <span>Active Side</span>
+                                                <span className="text-indigo-400">{jointConfidence.side || 'None'}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase mt-2">
+                                                <span>Angle</span>
+                                                <span className="text-white font-black">{debugInfo.kneeAngle}°</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -660,7 +937,10 @@ const AIExerciseCoach = () => {
                             }}
                             className="flex-1 px-8 py-4 bg-slate-800 border border-slate-700 rounded-2xl font-bold text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer hover:bg-slate-700"
                         >
-                            <option value="squat">🏆 Squats</option>
+                            <option value="kneebend">🦵 Knee Bend (Rehab)</option>
+                            <option value="shoulder_raise">💪 Shoulder Raise</option>
+                            <option value="arm_stretch">👐 Arm Stretch</option>
+                            <option value="squat">�️ Squats</option>
                             <option value="pushup">💪 Push-ups</option>
                             <option value="lunge">🦵 Lunges</option>
                         </select>

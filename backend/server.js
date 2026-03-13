@@ -589,6 +589,50 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
   }
 });
 
+// ==========================================
+// AI Physiotherapy Assistant Endpoints
+// ==========================================
+
+app.post('/api/physio/logs', async (req, res) => {
+  try {
+    const { userId, exerciseType, reps, duration, accuracy } = req.body;
+
+    // In a real scenario, we'd log this securely to Firestore:
+    // await db.collection('physio_sessions').add({ userId, exerciseType, reps, timestamp: new Date() });
+
+    console.log(`[Physio Logs] User ${userId || 'anonymous'} completed ${reps} reps of ${exerciseType}.`);
+
+    res.json({ success: true, message: 'Session logged successfully' });
+  } catch (error) {
+    console.error('Physio log error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/physio/risk-predictions', async (req, res) => {
+  try {
+    const { userId, riskLevel, message, exerciseType } = req.body;
+
+    console.log(`⚠️ INJURY RISK DETECTED [${riskLevel}]: ${message} for User: ${userId || 'anonymous'} during ${exerciseType}`);
+
+    // Store in firestore:
+    if (db) {
+      await db.collection('physio_injury_risks').add({
+        userId: userId || 'anonymous',
+        riskLevel,
+        message,
+        exerciseType,
+        createdAt: serverTimestamp ? serverTimestamp() : new Date()
+      });
+    }
+
+    res.json({ success: true, message: 'Risk logged successfully' });
+  } catch (error) {
+    console.error('Risk log error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const { v4: uuidv4 } = require('uuid');
 
 // In-memory data stores

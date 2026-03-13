@@ -14,7 +14,9 @@ const setCors = (res) => {
 /**
  * Create a new Hospital Company
  */
-exports.createHospitalCompany = onRequest({ cors: true }, async (req, res) => {
+exports.createHospitalCompany = onRequest(async (req, res) => {
+    setCors(res);
+    if (req.method === 'OPTIONS') return res.status(204).send('');
     try {
         const { name, branding } = req.body;
         if (!name) return res.status(400).json({ success: false, error: 'Name is required' });
@@ -37,7 +39,9 @@ exports.createHospitalCompany = onRequest({ cors: true }, async (req, res) => {
 /**
  * Create a new Hospital Branch
  */
-exports.createHospitalBranch = onRequest({ cors: true }, async (req, res) => {
+exports.createHospitalBranch = onRequest(async (req, res) => {
+    setCors(res);
+    if (req.method === 'OPTIONS') return res.status(204).send('');
     try {
         const { companyId, name, address, phone } = req.body;
         if (!companyId || !name) return res.status(400).json({ success: false, error: 'CompanyId and Name are required' });
@@ -62,7 +66,9 @@ exports.createHospitalBranch = onRequest({ cors: true }, async (req, res) => {
 /**
  * Associate a user (Doctor/Nurse/Admin) with a branch
  */
-exports.assignUserToBranch = onRequest({ cors: true }, async (req, res) => {
+exports.assignUserToBranch = onRequest(async (req, res) => {
+    setCors(res);
+    if (req.method === 'OPTIONS') return res.status(204).send('');
     try {
         const { uid, branchId, companyId } = req.body;
         if (!uid || !branchId) return res.status(400).json({ success: false, error: 'UID and branchId are required' });

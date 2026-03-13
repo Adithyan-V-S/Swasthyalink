@@ -31,6 +31,7 @@ import Register from './pages/register';
 import Profile from './pages/profile';
 import HealthAnalytics from './pages/HealthAnalytics';
 import AIExerciseCoach from './components/exercise/AIExerciseCoach';
+import EyeExerciseCoach from './components/exercise/EyeExerciseCoach';
 import SmartReportAnalyzer from './components/SmartReportAnalyzer';
 import NurseDashboard from './pages/NurseDashboard';
 import HospitalAdminDashboard from './pages/HospitalAdminDashboard';
@@ -39,7 +40,7 @@ import PharmacyDashboard from './pages/PharmacyDashboard';
 function AppContent() {
   const location = useLocation();
   const hideHeaderFooterOn = ['/login', '/register', '/admindashboard', '/hospitaladmindashboard', '/pharmacydashboard', '/nursedashboard', '/doctordashboard'];
-  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer'];
+  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer', '/eye-exercise'];
 
   return (
     <ErrorBoundary>
@@ -62,7 +63,8 @@ function AppContent() {
         <Route path="/admindashboard" element={<PrivateRoute requiredRole="admin"><AdminDashboard /></PrivateRoute>} />
         <Route path="/admindoctormanagement" element={<PrivateRoute requiredRole="admin"><AdminDoctorManagement /></PrivateRoute>} />
         <Route path="/familydashboard" element={<PrivateRoute requiredRole="family"><EnhancedFamilyDashboard /></PrivateRoute>} />
-        <Route path="/exercise-coach" element={<PrivateRoute requiredRole="patient"><div className="p-8 max-w-7xl mx-auto"><AIExerciseCoach /></div></PrivateRoute>} />
+        <Route path="/exercise-coach" element={<div className="p-8 max-w-7xl mx-auto"><AIExerciseCoach /></div>} />
+        <Route path="/eye-exercise" element={<PrivateRoute requiredRole="patient"><EyeExerciseCoach /></PrivateRoute>} />
         <Route path="/report-analyzer" element={<PrivateRoute requiredRole="patient"><SmartReportAnalyzer /></PrivateRoute>} />
         <Route path="/nursedashboard" element={<PrivateRoute requiredRole="nurse"><NurseDashboard /></PrivateRoute>} />
         <Route path="/hospitaladmindashboard" element={<PrivateRoute requiredRole="hospital_admin"><HospitalAdminDashboard /></PrivateRoute>} />
