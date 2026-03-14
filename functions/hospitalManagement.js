@@ -1,6 +1,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require('firebase-admin');
 const { v4: uuidv4 } = require('uuid');
+const { addMedicalBlock } = require('./blockchainService');
 
 const db = admin.firestore();
 
@@ -30,6 +31,15 @@ exports.createHospitalCompany = onRequest(async (req, res) => {
         };
 
         await db.collection('hospital_companies').doc(companyId).set(company);
+
+        // Anchor company creation on blockchain
+        await addMedicalBlock({
+            type: 'COMPANY_CREATED',
+            companyId: companyId,
+            name: name,
+            timestamp: company.createdAt
+        });
+
         res.json({ success: true, company });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -57,6 +67,16 @@ exports.createHospitalBranch = onRequest(async (req, res) => {
         };
 
         await db.collection('hospital_branches').doc(branchId).set(branch);
+
+        // Anchor branch creation on blockchain
+        await addMedicalBlock({
+            type: 'BRANCH_CREATED',
+            branchId: branchId,
+            companyId: companyId,
+            name: name,
+            timestamp: branch.createdAt
+        });
+
         res.json({ success: true, branch });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

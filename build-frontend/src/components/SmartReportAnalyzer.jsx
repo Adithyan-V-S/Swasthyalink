@@ -10,6 +10,9 @@ const SAMPLE_REPORTS = [
         type: 'General Wellness',
         path: '/exercises/cbc_sample.png', // Reusing available assets or placeholders
         mockData: {
+            patientName: "Yash M. Patel",
+            patientAge: "21",
+            patientGender: "Male",
             summary: "Your Complete Blood Count is generally within normal limits, indicating good overall health. Hemoglobin and White Blood Cell counts are optimal.",
             results: [
                 { testName: "Hemoglobin", value: "14.5", unit: "g/dL", referenceRange: "13.5 - 17.5", status: "Normal" },
@@ -26,6 +29,9 @@ const SAMPLE_REPORTS = [
         type: 'Heart Health',
         path: '/exercises/lipid_sample.png',
         mockData: {
+            patientName: "Sarah J. Connor",
+            patientAge: "45",
+            patientGender: "Female",
             summary: "Your lipid profile shows slightly elevated LDL (bad) cholesterol. Total cholesterol is at the upper limit of normal.",
             results: [
                 { testName: "Total Cholesterol", value: "198", unit: "mg/dL", referenceRange: "< 200", status: "Normal" },
@@ -144,6 +150,8 @@ const SmartReportAnalyzer = () => {
             }
 
             const analysisData = data.data;
+            console.log("Raw AI Analysis Output:", analysisData);
+
             // Generate some mock recommendations if missing
             if (!analysisData.recommendations) {
                 analysisData.recommendations = ["Continue monitoring health trends", "Consult your physician for professional interpretation", "Share this report with your family network"];
@@ -169,8 +177,7 @@ const SmartReportAnalyzer = () => {
 
     return (
         <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            {/* Header / Navigation */}
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 print:hidden">
                 <button
                     onClick={() => setShowHistory(!showHistory)}
                     className="flex items-center gap-2 text-indigo-600 font-semibold hover:text-indigo-800 transition-colors"
@@ -178,6 +185,19 @@ const SmartReportAnalyzer = () => {
                     <span className="material-icons">{showHistory ? 'arrow_back' : 'history'}</span>
                     {showHistory ? 'Back to Analyzer' : 'View History'}
                 </button>
+                {showHistory && history.length > 0 && (
+                    <button
+                        onClick={() => {
+                            setHistory([]);
+                            localStorage.removeItem(`report_history_${currentUser?.uid || 'guest'}`);
+                            toast.success('History cleared successfully');
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg font-semibold hover:bg-red-100 transition-colors"
+                    >
+                        <span className="material-icons text-sm">delete_outline</span>
+                        Clear History
+                    </button>
+                )}
             </div>
 
             {showHistory ? (
@@ -218,7 +238,7 @@ const SmartReportAnalyzer = () => {
                     )}
                 </div>
             ) : (
-                <div className="bg-white rounded-[32px] shadow-2xl shadow-indigo-100/50 overflow-hidden border border-indigo-50 print:shadow-none print:border-none">
+                <div id="printable-report" className="bg-white rounded-[32px] shadow-2xl shadow-indigo-100/50 overflow-hidden border border-indigo-50 print:shadow-none print:border-none print:rounded-none">
                     <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-700 px-10 py-10 text-white print:hidden">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div>
@@ -234,30 +254,28 @@ const SmartReportAnalyzer = () => {
                     </div>
 
                     {/* Print Only Header */}
-                    <div className="hidden print:block p-8 border-b-2 border-indigo-600 mb-8">
-                        <div className="flex justify-between items-center">
+                    <div className="hidden print:block p-8 mb-8">
+                        <div className="flex justify-between items-end border-b-2 border-gray-800 pb-4 mb-6">
                             <div>
-                                <h1 className="text-3xl font-black text-indigo-600 uppercase tracking-tighter italic">Swasthyalink</h1>
-                                <p className="text-gray-500 font-bold">Smart Digital Health Report</p>
+                                <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tighter">SWASTHYALINK</h1>
+                                <p className="text-gray-600 font-bold uppercase text-sm tracking-widest">Laboratory Report</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-sm font-black text-gray-800 uppercase tracking-widest">Medical Analysis</p>
-                                <p className="text-gray-500 font-medium">{new Date().toLocaleDateString()} • {new Date().toLocaleTimeString()}</p>
+                                <p className="text-xl font-black text-gray-800 uppercase">Medical Analysis</p>
+                                <p className="text-sm text-gray-600 font-medium">Generated: {new Date().toLocaleDateString()} • {new Date().toLocaleTimeString()}</p>
                             </div>
                         </div>
-                        <div className="mt-6 flex gap-12 text-sm">
-                            <div>
-                                <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Patient Name</p>
-                                <p className="font-black text-gray-800">{currentUser?.displayName || 'Valued User'}</p>
-                            </div>
-                            <div>
-                                <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Report Type</p>
-                                <p className="font-black text-gray-800">Laboratory Data Analysis</p>
-                            </div>
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm border-b-2 border-gray-800 pb-6 border-t border-gray-100 pt-6">
+                            <div className="flex"><span className="font-bold w-32 text-gray-600 uppercase">Patient Name:</span> <span className="font-bold text-gray-900 uppercase">{analysis?.patientName || currentUser?.displayName || 'N/A'}</span></div>
+                            <div className="flex"><span className="font-bold w-32 text-gray-600 uppercase">Report Type:</span> <span className="text-gray-900">AI Medical Analysis</span></div>
+                            <div className="flex"><span className="font-bold w-32 text-gray-600 uppercase">Age / Gender:</span> <span className="text-gray-900">{analysis?.patientAge || 'Adult'} / {analysis?.patientGender || 'Unspecified'}</span></div>
+                            <div className="flex"><span className="font-bold w-32 text-gray-600 uppercase">Referred By:</span> <span className="text-gray-900">Self Upload</span></div>
+                            <div className="flex"><span className="font-bold w-32 text-gray-600 uppercase">Patient ID:</span> <span className="text-gray-900 uppercase">{currentUser?.uid ? currentUser.uid.substring(0, 8) : 'UNK'}</span></div>
+                            <div className="flex"><span className="font-bold w-32 text-gray-600 uppercase">Status:</span> <span className="font-bold text-gray-900 uppercase">{analysis?.overallStatus || 'Completed'}</span></div>
                         </div>
                     </div>
 
-                    <div className="p-10">
+                    <div className="p-10 print:p-8">
                         {/* Upload/Camera Section */}
                         <div className="mb-8 print:hidden">
                             {!imagePreview && !showCamera ? (
@@ -424,48 +442,52 @@ const SmartReportAnalyzer = () => {
                                     </button>
                                 </div>
 
-                                <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-[32px] p-10 shadow-2xl shadow-indigo-200 relative overflow-hidden text-white print:bg-indigo-50 print:text-indigo-900 print:shadow-none print:border print:border-indigo-100">
+                                <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-[32px] p-10 shadow-2xl shadow-indigo-200 relative overflow-hidden text-white print:!bg-none print:!bg-white print:p-0 print:border-l-4 print:border-gray-800 print:text-gray-900 print:shadow-none print:rounded-none print:my-8 print:pl-6">
                                     <div className="absolute top-0 right-0 opacity-10 transform translate-x-1/4 -translate-y-1/4 print:hidden">
                                         <span className="material-icons text-[250px]">psychology</span>
                                     </div>
-                                    <h3 className="text-3xl font-black mb-6 flex items-center gap-3 relative print:text-indigo-600">
-                                        <div className="p-2 bg-white/20 backdrop-blur-md rounded-lg print:bg-indigo-100">
-                                            <span className="material-icons text-3xl print:text-indigo-600">summarize</span>
+                                    <h3 className="text-3xl font-black mb-6 flex items-center gap-3 relative print:text-gray-900 print:text-xl print:mb-2 print:uppercase print:tracking-widest">
+                                        <div className="p-2 bg-white/20 backdrop-blur-md rounded-lg print:hidden">
+                                            <span className="material-icons text-3xl">summarize</span>
                                         </div>
                                         Executive AI Summary
                                     </h3>
-                                    <p className="text-2xl leading-relaxed font-medium relative italic text-indigo-50 print:text-indigo-900 print:text-lg">
-                                        "{analysis.summary}"
+                                    <p className="text-2xl leading-relaxed font-medium relative italic text-indigo-50 print:text-gray-800 print:text-base print:not-italic print:leading-normal">
+                                        {analysis.summary}
                                     </p>
                                 </div>
 
-                                <div className="overflow-x-auto rounded-[32px] shadow-2xl shadow-indigo-100/30 border border-gray-100 bg-white">
-                                    <table className="min-w-full">
-                                        <thead className="bg-gray-50/50 text-gray-400 uppercase text-sm font-black tracking-[0.2em]">
+                                <div className="overflow-x-auto rounded-[32px] shadow-2xl shadow-indigo-100/30 border border-gray-100 bg-white print:rounded-none print:shadow-none print:border-none print:mt-8 print:overflow-visible">
+                                    <table className="min-w-full print:border print:border-gray-800">
+                                        <thead className="bg-gray-50/50 text-gray-400 uppercase text-sm font-black tracking-[0.2em] print:bg-gray-100 print:text-gray-800 print:border-b-2 print:border-gray-800 print:tracking-widest">
                                             <tr>
-                                                <th className="px-10 py-8 text-left">Detailed Health Indicator</th>
-                                                <th className="px-10 py-8 text-left">Observed Value</th>
-                                                <th className="px-10 py-8 text-left">Reference Range</th>
-                                                <th className="px-10 py-8 text-center">AI Assessment</th>
+                                                <th className="px-10 py-8 text-left print:py-3 print:px-4">Test Description</th>
+                                                <th className="px-10 py-8 text-left print:py-3 print:px-4">Result Value</th>
+                                                <th className="px-10 py-8 text-left hidden md:table-cell print:table-cell print:py-3 print:px-4">Units</th>
+                                                <th className="px-10 py-8 text-left print:py-3 print:px-4">Reference Interval</th>
+                                                <th className="px-10 py-8 text-center print:py-3 print:px-4">Status / AI Mark</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-gray-100">
+                                        <tbody className="divide-y divide-gray-100 print:divide-gray-300">
                                             {analysis.results.map((item, index) => (
-                                                <tr key={index} className="group hover:bg-indigo-50/30 transition-all duration-300">
-                                                    <td className="px-10 py-6">
-                                                        <p className="font-black text-xl text-gray-800 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{item.testName}</p>
+                                                <tr key={index} className="group hover:bg-indigo-50/30 transition-all duration-300 print:hover:bg-transparent">
+                                                    <td className="px-10 py-6 print:py-3 print:px-4">
+                                                        <p className="font-black text-xl text-gray-800 group-hover:text-indigo-600 transition-colors uppercase tracking-tight print:text-sm print:font-bold print:uppercase print:text-gray-900">{item.testName}</p>
                                                     </td>
-                                                    <td className="px-10 py-6">
-                                                        <span className="text-2xl font-black text-gray-900">{item.value}</span>
-                                                        <span className="text-sm font-bold text-gray-400 ml-2 uppercase tracking-tighter">{item.unit}</span>
+                                                    <td className="px-10 py-6 print:py-3 print:px-4">
+                                                        <span className={`text-2xl font-black ${item.status !== 'Normal' ? 'text-gray-900 print:font-black' : 'text-gray-800 print:font-semibold'} print:text-base`}>{item.value}</span>
+                                                        <span className="text-sm font-bold text-gray-400 ml-2 uppercase tracking-tighter md:hidden print:hidden">{item.unit}</span>
                                                     </td>
-                                                    <td className="px-10 py-6 text-gray-500 font-bold text-lg">{item.referenceRange}</td>
-                                                    <td className="px-10 py-6 text-center">
-                                                        <span className={`inline-flex items-center px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest border-2 shadow-sm ${item.status === 'High' ? 'bg-red-50 text-red-600 border-red-200' :
-                                                            item.status === 'Low' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' :
-                                                                'bg-green-50 text-green-600 border-green-200'
+                                                    <td className="px-10 py-6 hidden md:table-cell print:table-cell print:py-3 print:px-4 text-gray-500 font-bold print:text-gray-800 print:text-xs print:font-normal">
+                                                        {item.unit || '-'}
+                                                    </td>
+                                                    <td className="px-10 py-6 print:py-3 print:px-4 text-gray-500 font-bold text-lg print:text-xs print:text-gray-800 print:font-normal">{item.referenceRange || '-'}</td>
+                                                    <td className="px-10 py-6 text-center print:py-3 print:px-4">
+                                                        <span className={`inline-flex items-center px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest border-2 shadow-sm print:shadow-none print:border-none print:px-0 print:py-0 print:text-xs ${item.status === 'High' ? 'bg-red-50 text-red-600 border-red-200 print:bg-transparent print:text-gray-900 print:font-black' :
+                                                            item.status === 'Low' ? 'bg-yellow-50 text-yellow-600 border-yellow-200 print:bg-transparent print:text-gray-900 print:font-black' :
+                                                                'bg-green-50 text-green-600 border-green-200 print:bg-transparent print:text-gray-800 print:font-normal'
                                                             }`}>
-                                                            {item.status}
+                                                            {item.status}{item.status !== 'Normal' ? ' *' : ''}
                                                         </span>
                                                     </td>
                                                 </tr>
@@ -475,26 +497,26 @@ const SmartReportAnalyzer = () => {
                                 </div>
 
                                 {/* Recommendations */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
-                                    <div className="bg-white rounded-[32px] p-10 border border-gray-100 shadow-xl shadow-indigo-100/20">
-                                        <h4 className="text-2xl font-black text-gray-800 mb-8 flex items-center gap-3">
-                                            <div className="p-2 bg-green-50 rounded-xl">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:block">
+                                    <div className="bg-white rounded-[32px] p-10 border border-gray-100 shadow-xl shadow-indigo-100/20 print:shadow-none print:border-none print:p-0 print:mt-8 print:w-full">
+                                        <h4 className="text-2xl font-black text-gray-800 mb-8 flex items-center gap-3 print:text-lg print:mb-4 print:uppercase print:tracking-widest print:text-gray-900 print:font-bold">
+                                            <div className="p-2 bg-green-50 rounded-xl print:hidden">
                                                 <span className="material-icons text-green-500 text-3xl">tips_and_updates</span>
                                             </div>
                                             Clinical Action Plan
                                         </h4>
-                                        <ul className="space-y-6">
+                                        <ul className="space-y-6 print:space-y-2 list-none print:list-disc print:pl-5">
                                             {analysis.recommendations?.map((rec, i) => (
-                                                <li key={i} className="flex items-start gap-5 text-lg text-gray-600 group">
-                                                    <div className="mt-1.5 w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-600 transition-colors">
+                                                <li key={i} className="flex items-start gap-5 text-lg text-gray-600 group print:text-sm print:text-gray-800 print:gap-2 print:items-center">
+                                                    <div className="mt-1.5 w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-600 transition-colors print:hidden">
                                                         <span className="material-icons text-[14px] text-indigo-400 group-hover:text-white transition-colors">arrow_forward</span>
                                                     </div>
-                                                    <span className="leading-relaxed font-medium">{rec}</span>
+                                                    <span className="leading-relaxed font-medium print:font-normal">{rec}</span>
                                                 </li>
                                             ))}
                                         </ul>
                                     </div>
-                                    <div className="bg-indigo-600 rounded-[32px] p-10 text-white shadow-2xl shadow-indigo-200 flex flex-col justify-between relative overflow-hidden group">
+                                    <div className="bg-indigo-600 rounded-[32px] p-10 text-white shadow-2xl shadow-indigo-200 flex flex-col justify-between relative overflow-hidden group print:hidden">
                                         <div className="absolute -bottom-10 -right-10 opacity-10 transform scale-150 group-hover:rotate-12 transition-transform duration-700">
                                             <span className="material-icons text-[200px]">support_agent</span>
                                         </div>
@@ -506,6 +528,10 @@ const SmartReportAnalyzer = () => {
                                             Consult a Dr. Now
                                         </button>
                                     </div>
+                                </div>
+                                <div className="hidden print:block mt-12 pt-6 border-t font-black border-gray-800 text-xs text-gray-500 text-center uppercase tracking-widest">
+                                    <p>*** End of Report ***</p>
+                                    <p className="font-normal mt-2 lowercase">Powered by Swasthyalink AI Engine</p>
                                 </div>
                             </div>
                         )}
@@ -519,15 +545,27 @@ const SmartReportAnalyzer = () => {
                         margin: 15mm; 
                         size: A4;
                     }
-                    body { 
+                    body * { 
+                        visibility: hidden; 
+                    }
+                    #printable-report, #printable-report * {
+                        visibility: visible;
                         -webkit-print-color-adjust: exact;
+                        color-adjust: exact;
+                    }
+                    #printable-report {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
                         background: white !important;
                     }
-                    .bg-white { background: white !important; }
-                    .rounded-\[32px\] { border-radius: 12px !important; }
-                    table { border: 1px solid #e5e7eb !important; }
-                    th { background-color: #f9fafb !important; color: #374151 !important; border-bottom: 2px solid #e5e7eb !important; }
-                    td { border-bottom: 1px solid #f3f4f6 !important; }
+                    .print\\:bg-none {
+                        background-image: none !important;
+                        background: white !important;
+                    }
+                    table { border-collapse: collapse !important; border: 1px solid #d1d5db !important; width: 100% !important; }
+                    th, td { border-bottom: 1px solid #d1d5db !important; }
                 }
                 .animate-shake {
                     animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;

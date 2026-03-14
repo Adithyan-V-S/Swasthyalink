@@ -45,6 +45,7 @@ const adminService = require('./adminService');
 const blockchainService = require('./blockchainService');
 const hospitalManagement = require('./hospitalManagement');
 const physio = require('./physio');
+const appointments = require('./appointments'); // Added for appointments
 
 exports.analyzeReport = analyzeReport;
 exports.geminiChat = geminiChat;

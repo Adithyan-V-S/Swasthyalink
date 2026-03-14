@@ -36,11 +36,13 @@ import SmartReportAnalyzer from './components/SmartReportAnalyzer';
 import NurseDashboard from './pages/NurseDashboard';
 import HospitalAdminDashboard from './pages/HospitalAdminDashboard';
 import PharmacyDashboard from './pages/PharmacyDashboard';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import Appointments from './pages/Appointments';
 
 function AppContent() {
   const location = useLocation();
-  const hideHeaderFooterOn = ['/login', '/register', '/admindashboard', '/hospitaladmindashboard', '/pharmacydashboard', '/nursedashboard', '/doctordashboard'];
-  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer', '/eye-exercise'];
+  const hideHeaderFooterOn = ['/login', '/register', '/admindashboard', '/hospitaladmindashboard', '/pharmacydashboard', '/nursedashboard', '/doctordashboard', '/superadmindashboard'];
+  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer', '/eye-exercise', '/superadmindashboard', '/appointments'];
 
   return (
     <ErrorBoundary>
@@ -68,7 +70,9 @@ function AppContent() {
         <Route path="/report-analyzer" element={<PrivateRoute requiredRole="patient"><SmartReportAnalyzer /></PrivateRoute>} />
         <Route path="/nursedashboard" element={<PrivateRoute requiredRole="nurse"><NurseDashboard /></PrivateRoute>} />
         <Route path="/hospitaladmindashboard" element={<PrivateRoute requiredRole="hospital_admin"><HospitalAdminDashboard /></PrivateRoute>} />
+        <Route path="/superadmindashboard" element={<PrivateRoute requiredRole="admin"><SuperAdminDashboard /></PrivateRoute>} />
         <Route path="/pharmacydashboard" element={<PrivateRoute requiredRole="pharmacy"><PharmacyDashboard /></PrivateRoute>} />
+        <Route path="/appointments" element={<PrivateRoute requiredRole="patient"><Appointments /></PrivateRoute>} />
         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
       </Routes>
       {!hideHeaderFooterOn.includes(location.pathname) && <Footer />}

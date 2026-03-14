@@ -10,6 +10,7 @@ import QRScanner from "../components/QRScanner";
 import PrescriptionModal from "../components/PrescriptionModal";
 import PatientProfileModal from "../components/PatientProfileModal";
 import DoctorPrescriptions from "./DoctorPrescriptions";
+import { getAppointments, updateAppointmentStatus } from "../services/appointmentService";
 
 const DoctorDashboard = () => {
   const { currentUser, userRole } = useAuth();
@@ -40,6 +41,7 @@ const DoctorDashboard = () => {
   const [selectedPatientForProfile, setSelectedPatientForProfile] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [appointments, setAppointments] = useState([]);
 
   useEffect(() => {
     console.log('Doctor Dashboard: AuthContext currentUser:', currentUser);
@@ -49,6 +51,12 @@ const DoctorDashboard = () => {
       console.log('Doctor Dashboard: Using currentUser for API calls');
       loadDoctorData();
       setupNotifications();
+      loadAppointments();
+
+      // Check for tab query parameter
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab) setActiveTab(tab);
 
       // Real-time listener for connection requests status
       // When a patient accepts, the status changes there, but we also want to listen to relationships
@@ -114,6 +122,28 @@ const DoctorDashboard = () => {
     });
 
     return unsubscribe;
+  };
+
+  const loadAppointments = async () => {
+    if (!currentUser?.uid) return;
+    try {
+      const res = await getAppointments(currentUser.uid, 'doctor');
+      if (res.success) setAppointments(res.appointments);
+    } catch (error) {
+      console.error("Error loading appointments:", error);
+    }
+  };
+
+  const handleUpdateAppointment = async (apptId, status) => {
+    try {
+      const res = await updateAppointmentStatus(apptId, status);
+      if (res.success) {
+        setNotification(`Appointment ${status} successfully.`);
+        loadAppointments();
+      }
+    } catch (error) {
+      setNotification(`Failed to update appointment: ${error.message}`);
+    }
   };
 
   const showConnectionAcceptedAlert = async (notification) => {
@@ -533,6 +563,7 @@ const DoctorDashboard = () => {
             <nav className="space-y-2">
               {[
                 { id: 'dashboard', name: 'Dashboard', icon: '📊' },
+                { id: 'appointments', name: 'Appointments', icon: '📅' },
                 { id: 'patients', name: 'Patients', icon: '👥' },
                 { id: 'connect', name: 'Connect Patient', icon: '🔗' },
                 { id: 'prescriptions', name: 'Prescriptions', icon: '💊' },
@@ -976,6 +1007,55 @@ const DoctorDashboard = () => {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'appointments' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-gray-900">Manage Appointments</h2>
+                  <button onClick={loadAppointments} className="text-blue-600 font-medium hover:underline">Refresh</button>
+                </div>
+                <div className="grid gap-4">
+                  {appointments.length === 0 ? (
+                    <div className="bg-white p-12 rounded-xl text-center border-2 border-dashed border-gray-200">
+                      <p className="text-gray-500">No appointments scheduled.</p>
+                    </div>
+                  ) : (
+                    appointments.map(appt => (
+                      <div key={appt.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center group hover:border-blue-200 transition-all">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${appt.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                              appt.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                              }`}>
+                              {appt.status}
+                            </span>
+                            <h3 className="font-bold text-gray-900">{appt.date} at {appt.time}</h3>
+                          </div>
+                          <p className="text-sm text-gray-600">Patient ID: {appt.patientId}</p>
+                          <p className="text-sm text-gray-500 mt-1 italic">"{appt.reason}"</p>
+                        </div>
+                        {appt.status === 'pending' && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleUpdateAppointment(appt.id, 'accepted')}
+                              className="bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-100"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleUpdateAppointment(appt.id, 'rejected')}
+                              className="bg-white text-rose-500 border border-rose-200 px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-rose-50"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
 

@@ -14,24 +14,31 @@ const Sidebar = ({ open, onClose }) => {
 
     const roleSpecificItems = {
       admin: [
-        { to: "/admindashboard", label: "Admin Dashboard" },
+        { to: "/superadmindashboard", label: "Group Admin Dashboard" },
+        { to: "/admindashboard", label: "Branch Management" },
         { to: "/settings", label: "Settings" },
       ],
       doctor: [
         { to: "/doctordashboard", label: "Doctor Dashboard" },
+        { to: "/doctordashboard?tab=appointments", label: "Appointments" },
         { to: "/settings", label: "Settings" },
       ],
       nurse: [
         { to: "/nursedashboard", label: "Nurse Dashboard" },
         { to: "/settings", label: "Settings" },
       ],
+      hospital_admin: [
+        { to: "/hospitaladmindashboard", label: "Hospital Admin Dashboard" },
+        { to: "/settings", label: "Settings" },
+      ],
       patient: [
         { to: "/patientdashboard", label: "Patient Dashboard" },
+        { to: "/appointments", label: "My Appointments" },
         { to: "/healthanalytics", label: "Health Analytics" },
         { to: "/familydashboard", label: "Family Access" },
         { to: "/report-analyzer", label: "Smart Reports" },
         { to: "/exercise-coach", label: "AI Coach" },
-        { to: "/eye-exercise", label: "👁️ Eye Exercises" },
+        { to: "/eye-exercise", label: "Eye Exercises" },
         { to: "/settings", label: "Settings" },
       ],
     };

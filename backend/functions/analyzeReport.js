@@ -25,7 +25,7 @@ exports.analyzeReport = functions.https.onRequest(async (req, res) => {
         // Using gemini-flash-latest as discovered in previous diagnostics
         const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
-        const prompt = "Analyze this medical lab report. Extract the test names, results, units, and reference ranges. Identify if any result is 'High', 'Low', or 'Normal' based on the reference range. Provide a brief medical summary of the report and what it means for the patient. Provide the output in strictly valid JSON format with this structure: { \"summary\": \"Brief medical summary of the report\", \"results\": [ { \"testName\": \"Hemoglobin\", \"value\": \"14.5\", \"unit\": \"g/dL\", \"status\": \"Normal\", \"referenceRange\": \"13.5-17.5\" } ] }";
+        const prompt = "Analyze this medical lab report image meticulously.\n1. Look at the header or top section to find patient demographics. Extract the EXACT patient's name as 'patientName'.\n2. Extract 'patientAge' and 'patientGender' if available.\n3. Extract all medical test results into the 'results' array.\n4. Provide a professional 'summary'.\n\nReturn ONLY a strictly valid JSON object with this structure:\n{\n  \"patientName\": \"FullName\",\n  \"patientAge\": \"Age\",\n  \"patientGender\": \"Gender\",\n  \"summary\": \"Brief interpretation\",\n  \"results\": [\n    { \"testName\": \"...\", \"value\": \"...\", \"unit\": \"...\", \"referenceRange\": \"...\", \"status\": \"Normal/High/Low\" }\n  ]\n}\n\nIf any demographic field is not found, set it to null. Do not use placeholders like 'Extracted Name'.";
 
         const imageParts = [
             {
