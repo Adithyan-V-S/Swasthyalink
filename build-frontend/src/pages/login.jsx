@@ -299,7 +299,7 @@ const Login = () => {
       setLoading(false);
       setPresetAdmin(true);
       localStorage.setItem('testUserRole', 'admin');
-      navigate("/hospitaladmindashboard");
+      navigate("/admindashboard");
       return;
     }
 

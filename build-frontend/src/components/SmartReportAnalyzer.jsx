@@ -46,6 +46,7 @@ const SAMPLE_REPORTS = [
 ];
 
 const SmartReportAnalyzer = () => {
+    const [reportType, setReportType] = useState('lab');
     const [selectedImage, setSelectedImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [analysis, setAnalysis] = useState(null);
@@ -239,16 +240,36 @@ const SmartReportAnalyzer = () => {
                 </div>
             ) : (
                 <div id="printable-report" className="bg-white rounded-[32px] shadow-2xl shadow-indigo-100/50 overflow-hidden border border-indigo-50 print:shadow-none print:border-none print:rounded-none">
-                    <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-700 px-10 py-10 text-white print:hidden">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div>
-                                <h1 className="text-3xl sm:text-4xl font-black flex items-center gap-4">
-                                    <span className="material-icons text-4xl">analytics</span>
-                                    Smart Lab Report Analyzer
-                                </h1>
-                                <p className="text-lg text-indigo-100 mt-2 opacity-90 print:hidden font-medium max-w-2xl">
-                                    AI-powered medical insights. Decode your results instantly.
-                                </p>
+                    <div className="bg-gradient-to-r from-indigo-700 via-violet-800 to-indigo-900 px-6 py-4 text-white print:hidden relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 relative z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-lg">
+                                    <span className="material-icons text-2xl">psychology</span>
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-black tracking-tight">
+                                        Health & Imaging AI
+                                    </h1>
+                                    <p className="text-[10px] text-indigo-100 font-bold opacity-70 uppercase tracking-widest">
+                                        Lab Results • X-rays • Scans
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex bg-white/10 backdrop-blur-md p-1 rounded-lg items-center border border-white/5">
+                                {['lab', 'xray', 'scan'].map((type) => (
+                                    <button
+                                        key={type}
+                                        onClick={() => setReportType(type)}
+                                        className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all ${reportType === type
+                                                ? 'bg-white text-indigo-900 shadow-sm'
+                                                : 'text-white/60 hover:text-white hover:bg-white/10'
+                                            }`}
+                                    >
+                                        {type === 'lab' ? 'Lab Results' : type === 'xray' ? 'X-Ray' : 'Scan'}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </div>
@@ -419,42 +440,67 @@ const SmartReportAnalyzer = () => {
                         {/* Results Section */}
                         {analysis && (
                             <div className="animate-fade-in-up space-y-8">
-                                <div className="flex justify-between items-center print:hidden">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${analysis.overallStatus === 'Healthy' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4 print:hidden">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <div className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-sm ${analysis.overallStatus === 'Healthy'
+                                                ? 'bg-green-500 text-white shadow-green-100'
+                                                : 'bg-amber-500 text-white shadow-amber-100'
                                             }`}>
-                                            <span className="material-icons">{analysis.overallStatus === 'Healthy' ? 'check_circle' : 'warning'}</span>
-                                            Overall Status: {analysis.overallStatus}
+                                            <span className="material-icons text-xs">{analysis.overallStatus === 'Healthy' ? 'verified' : 'warning'}</span>
+                                            {analysis.overallStatus}
                                         </div>
                                         {analysis.blockchainHash && (
-                                            <div className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-bold flex items-center gap-2 border border-indigo-200">
-                                                <span className="material-icons">verified_user</span>
-                                                Blockchain Verified
+                                            <div className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-sm shadow-indigo-100">
+                                                <span className="material-icons text-xs">shield</span>
+                                                Verified
                                             </div>
                                         )}
                                     </div>
                                     <button
                                         onClick={handlePrint}
-                                        className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95"
+                                        className="w-full lg:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg font-black text-[10px] hover:bg-black transition-all shadow-md active:scale-95"
                                     >
-                                        <span className="material-icons">download</span>
-                                        Download PDF Report
+                                        <span className="material-icons text-xs">picture_as_pdf</span>
+                                        Download Report
                                     </button>
                                 </div>
 
-                                <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-[32px] p-10 shadow-2xl shadow-indigo-200 relative overflow-hidden text-white print:!bg-none print:!bg-white print:p-0 print:border-l-4 print:border-gray-800 print:text-gray-900 print:shadow-none print:rounded-none print:my-8 print:pl-6">
-                                    <div className="absolute top-0 right-0 opacity-10 transform translate-x-1/4 -translate-y-1/4 print:hidden">
-                                        <span className="material-icons text-[250px]">psychology</span>
+                                {/* AI Executive Summary - Even Smaller */}
+                                <div className="bg-gradient-to-br from-indigo-50 via-white to-blue-50 rounded-[24px] p-6 border border-indigo-100/30 shadow-lg shadow-indigo-100/10 relative overflow-hidden mb-6">
+                                    <div className="absolute -top-6 -right-6 opacity-[0.02] transform rotate-12">
+                                        <span className="material-icons text-[100px]">medical_information</span>
                                     </div>
-                                    <h3 className="text-3xl font-black mb-6 flex items-center gap-3 relative print:text-gray-900 print:text-xl print:mb-2 print:uppercase print:tracking-widest">
-                                        <div className="p-2 bg-white/20 backdrop-blur-md rounded-lg print:hidden">
-                                            <span className="material-icons text-3xl">summarize</span>
+                                    <h3 className="text-xl font-black text-indigo-950 mb-4 flex items-center gap-2 relative">
+                                        <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-sm">
+                                            <span className="material-icons text-lg">auto_awesome</span>
                                         </div>
-                                        Executive AI Summary
+                                        AI Clinical Insights
                                     </h3>
-                                    <p className="text-2xl leading-relaxed font-medium relative italic text-indigo-50 print:text-gray-800 print:text-base print:not-italic print:leading-normal">
-                                        {analysis.summary}
-                                    </p>
+                                    <div className="prose prose-indigo max-w-none">
+                                        <p className="text-lg leading-snug font-bold text-gray-800 relative bg-white/40 backdrop-blur-sm p-4 rounded-xl border border-white/60 shadow-inner italic">
+                                            "{analysis.summary}"
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="bg-white/60 backdrop-blur-md p-4 rounded-xl border border-white shadow-sm">
+                                            <h4 className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">Priority Actions</h4>
+                                            <div className="space-y-2">
+                                                {analysis.recommendations?.slice(0, 2).map((rec, i) => (
+                                                    <div key={i} className="flex items-center gap-2 text-[10px] text-gray-700 font-bold">
+                                                        <span className="material-icons text-indigo-500 text-xs">task_alt</span>
+                                                        {rec}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="bg-indigo-600 p-4 rounded-xl text-white shadow-md shadow-indigo-100 flex items-center">
+                                            <div>
+                                                <h4 className="text-[9px] font-black text-indigo-200 uppercase tracking-widest mb-1">Clinician Note</h4>
+                                                <p className="text-[11px] font-bold leading-tight">Discuss findings with your physician.</p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="overflow-x-auto rounded-[32px] shadow-2xl shadow-indigo-100/30 border border-gray-100 bg-white print:rounded-none print:shadow-none print:border-none print:mt-8 print:overflow-visible">
@@ -496,37 +542,25 @@ const SmartReportAnalyzer = () => {
                                     </table>
                                 </div>
 
-                                {/* Recommendations */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:block">
-                                    <div className="bg-white rounded-[32px] p-10 border border-gray-100 shadow-xl shadow-indigo-100/20 print:shadow-none print:border-none print:p-0 print:mt-8 print:w-full">
-                                        <h4 className="text-2xl font-black text-gray-800 mb-8 flex items-center gap-3 print:text-lg print:mb-4 print:uppercase print:tracking-widest print:text-gray-900 print:font-bold">
-                                            <div className="p-2 bg-green-50 rounded-xl print:hidden">
-                                                <span className="material-icons text-green-500 text-3xl">tips_and_updates</span>
+                                {/* Recommendations / Detailed List - Smoothed */}
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div className="bg-white rounded-[30px] p-8 border border-gray-100 shadow-xl shadow-indigo-100/10">
+                                        <h4 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-3">
+                                            <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600">
+                                                <span className="material-icons text-2xl">health_and_safety</span>
                                             </div>
                                             Clinical Action Plan
                                         </h4>
-                                        <ul className="space-y-6 print:space-y-2 list-none print:list-disc print:pl-5">
+                                        <div className="grid md:grid-cols-2 gap-4">
                                             {analysis.recommendations?.map((rec, i) => (
-                                                <li key={i} className="flex items-start gap-5 text-lg text-gray-600 group print:text-sm print:text-gray-800 print:gap-2 print:items-center">
-                                                    <div className="mt-1.5 w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-600 transition-colors print:hidden">
-                                                        <span className="material-icons text-[14px] text-indigo-400 group-hover:text-white transition-colors">arrow_forward</span>
+                                                <div key={i} className="flex items-start gap-3 p-4 bg-gray-50 rounded-2xl hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100 group">
+                                                    <div className="mt-0.5 w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm transition-transform group-hover:scale-110">
+                                                        <span className="material-icons text-[12px] text-indigo-600">arrow_forward</span>
                                                     </div>
-                                                    <span className="leading-relaxed font-medium print:font-normal">{rec}</span>
-                                                </li>
+                                                    <span className="text-sm font-bold text-gray-700 leading-tight">{rec}</span>
+                                                </div>
                                             ))}
-                                        </ul>
-                                    </div>
-                                    <div className="bg-indigo-600 rounded-[32px] p-10 text-white shadow-2xl shadow-indigo-200 flex flex-col justify-between relative overflow-hidden group print:hidden">
-                                        <div className="absolute -bottom-10 -right-10 opacity-10 transform scale-150 group-hover:rotate-12 transition-transform duration-700">
-                                            <span className="material-icons text-[200px]">support_agent</span>
                                         </div>
-                                        <div className="relative">
-                                            <h4 className="text-3xl font-black mb-4">Expert Interpretation</h4>
-                                            <p className="text-lg text-indigo-100 opacity-90 leading-relaxed mb-8">While AI provides amazing insights, we always recommend discussing these results with a certified medical professional for a personalized clinical diagnosis.</p>
-                                        </div>
-                                        <button className="relative bg-white text-indigo-600 py-5 rounded-2xl font-black text-xl hover:bg-indigo-50 transition-all transform hover:scale-[1.02] shadow-xl">
-                                            Consult a Dr. Now
-                                        </button>
                                     </div>
                                 </div>
                                 <div className="hidden print:block mt-12 pt-6 border-t font-black border-gray-800 text-xs text-gray-500 text-center uppercase tracking-widest">

@@ -36,13 +36,12 @@ import SmartReportAnalyzer from './components/SmartReportAnalyzer';
 import NurseDashboard from './pages/NurseDashboard';
 import HospitalAdminDashboard from './pages/HospitalAdminDashboard';
 import PharmacyDashboard from './pages/PharmacyDashboard';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import Appointments from './pages/Appointments';
 
 function AppContent() {
   const location = useLocation();
   const hideHeaderFooterOn = ['/login', '/register', '/admindashboard', '/hospitaladmindashboard', '/pharmacydashboard', '/nursedashboard', '/doctordashboard'];
-  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer', '/eye-exercise', '/superadmindashboard', '/appointments'];
+  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer', '/eye-exercise', '/appointments'];
 
   return (
     <ErrorBoundary>
@@ -62,9 +61,13 @@ function AppContent() {
         {/* Protected Routes - Authentication required */}
         <Route path="/patientdashboard" element={<PrivateRoute requiredRole="patient"><PatientDashboard /></PrivateRoute>} />
         <Route path="/doctordashboard" element={<PrivateRoute requiredRole="doctor"><DoctorDashboard /></PrivateRoute>} />
-        <Route path="/admindashboard" element={<PrivateRoute requiredRole="hospital_admin"><AdminDashboard /></PrivateRoute>} />
-        <Route path="/hospitaladmindashboard" element={<PrivateRoute requiredRole="admin"><HospitalAdminDashboard /></PrivateRoute>} />
+        <Route path="/admindashboard" element={<PrivateRoute requiredRole="admin"><AdminDashboard /></PrivateRoute>} />
+        <Route path="/hospitaladmindashboard" element={<PrivateRoute requiredRole="hospital_admin"><HospitalAdminDashboard /></PrivateRoute>} />
         <Route path="/pharmacydashboard" element={<PrivateRoute requiredRole="pharmacy"><PharmacyDashboard /></PrivateRoute>} />
+        <Route path="/familydashboard" element={<PrivateRoute><EnhancedFamilyDashboard /></PrivateRoute>} />
+        <Route path="/exercise-coach" element={<PrivateRoute><AIExerciseCoach /></PrivateRoute>} />
+        <Route path="/report-analyzer" element={<PrivateRoute><SmartReportAnalyzer /></PrivateRoute>} />
+        <Route path="/eye-exercise" element={<PrivateRoute><EyeExerciseCoach /></PrivateRoute>} />
         <Route path="/appointments" element={<PrivateRoute requiredRole="patient"><Appointments /></PrivateRoute>} />
         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
       </Routes>

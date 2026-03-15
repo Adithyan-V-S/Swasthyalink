@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getAppointments, createAppointment } from "../services/appointmentService";
 import { db } from "../firebaseConfig";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
 
 const Appointments = () => {
     const { currentUser } = useAuth();
@@ -13,23 +13,39 @@ const Appointments = () => {
     const [formData, setFormData] = useState({ doctorId: "", date: "", time: "", reason: "" });
 
     useEffect(() => {
-        const loadInitialData = async () => {
-            if (!currentUser) return;
-            setLoading(true);
-            try {
-                // Fetch user's appointments
-                const apptsRes = await getAppointments(currentUser.uid, 'patient');
-                if (apptsRes.success) setAppointments(apptsRes.appointments);
+        if (!currentUser) return;
+        setLoading(true);
 
+        // Fetch user's appointments directly from Firestore (Fix for CORS/404)
+        const appointmentsRef = collection(db, "appointments");
+        const qAppointments = query(appointmentsRef, where("patientId", "==", currentUser.uid));
+
+        const unsubscribe = onSnapshot(qAppointments, (snapshot) => {
+            const apptsList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            // Sort by date descending
+            apptsList.sort((a, b) => new Date(b.date) - new Date(a.date));
+            setAppointments(apptsList);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error listening to appointments:", error);
+            setLoading(false);
+        });
+
+        const loadDoctors = async () => {
+            try {
                 // Fetch available doctors
                 const doctorsSnap = await getDocs(query(collection(db, "users"), where("role", "==", "doctor")));
                 setDoctors(doctorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             } catch (error) {
-                console.error("Error loading appointment data:", error);
+                console.error("Error loading doctors:", error);
             }
-            setLoading(false);
         };
-        loadInitialData();
+
+        loadDoctors();
+        return () => unsubscribe();
     }, [currentUser]);
 
     const handleBooking = async (e) => {

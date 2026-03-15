@@ -7,6 +7,7 @@ import {
   NOTIFICATION_TYPES
 } from '../services/notificationService';
 import { subscribeToConversations } from '../services/chatService';
+import { toast } from 'react-hot-toast';
 
 import GeminiChatbot from "../components/GeminiChatbot";
 import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";
@@ -85,7 +86,16 @@ const EnhancedFamilyDashboard = () => {
   });
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [emergencyAccessExpiry, setEmergencyAccessExpiry] = useState(null);
-  const [filteredRecords, setFilteredRecords] = useState([]);
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [familyRecords, setFamilyRecords] = useState([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [familyFiles, setFamilyFiles] = useState([
+    { id: 1, name: 'Latest Blood Work.pdf', type: 'Lab Report', date: '2024-03-10', size: '2.4 MB', owner: 'Self' },
+    { id: 2, name: 'Chest X-Ray.jpg', type: 'Imaging', date: '2024-02-15', size: '4.8 MB', owner: 'Dad' },
+    { id: 3, name: 'Vaccination Record.pdf', type: 'Certificate', date: '2024-01-05', size: '1.1 MB', owner: 'Mom' }
+  ]);
+  const [activeFileCategory, setActiveFileCategory] = useState('All');
   const [showAddMember, setShowAddMember] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -115,9 +125,9 @@ const EnhancedFamilyDashboard = () => {
     }
   }, []);
 
-  // Load family network data on component mount to update stats
+  // Load family network data and members
   useEffect(() => {
-    const loadFamilyNetworkStats = async () => {
+    const loadFamilyData = async () => {
       if (!currentUser) return;
 
       try {
@@ -126,42 +136,82 @@ const EnhancedFamilyDashboard = () => {
 
         if (response.success && response.network) {
           const members = response.network.members || [];
-          const emergencyContacts = members.filter(member => member.isEmergencyContact).length;
+          setFamilyMembers(members);
+          const emergencyCount = members.filter(member => member.isEmergencyContact).length;
 
           setNetworkStats({
             totalMembers: members.length,
-            pendingRequests: 0, // This would come from a separate API call
-            emergencyContacts: emergencyContacts,
-            onlineMembers: members.length // Simplified for now
+            pendingRequests: 0,
+            emergencyContacts: emergencyCount,
+            onlineMembers: members.length
           });
         }
       } catch (error) {
-        console.error('Error loading family network stats:', error);
+        console.error('Error loading family network:', error);
       }
     };
 
-    loadFamilyNetworkStats();
+    loadFamilyData();
   }, [currentUser]);
 
-  // Debug logging
+  // Load records for selected family member
   useEffect(() => {
-    console.log("EnhancedFamilyDashboard: Component mounted");
-    console.log("EnhancedFamilyDashboard: currentUser:", currentUser);
-    console.log("EnhancedFamilyDashboard: userRole:", userRole);
-  }, [currentUser, userRole]);
+    const fetchFamilyRecords = async () => {
+      if (!selectedMember || !currentUser) {
+        setFamilyRecords([]);
+        return;
+      }
 
-  useEffect(() => {
-    // Filter records based on access level and emergency mode
-    let accessibleRecords = [];
+      setRecordsLoading(true);
+      try {
+        const { collection, query, where, getDocs } = await import('firebase/firestore');
+        const { db } = await import('../firebaseConfig');
 
-    if (isEmergencyMode) {
-      accessibleRecords = mockSharedRecords.filter(record => record.isEmergency);
-    } else {
-      // For demo purposes, show all records
-      accessibleRecords = mockSharedRecords;
+        // Fetch prescriptions for the selected family member
+        const prescriptionsRef = collection(db, 'prescriptions');
+        const q = query(prescriptionsRef, where('patientId', '==', selectedMember.uid || selectedMember.id));
+        const snap = await getDocs(q);
+
+        let records = snap.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            date: data.createdAt ? new Date(data.createdAt.seconds ? data.createdAt.seconds * 1000 : data.createdAt).toLocaleDateString() : 'N/A',
+            doctor: data.doctorName || 'Unknown Doctor',
+            diagnosis: data.diagnosis || 'Medical Consultation',
+            prescription: data.medication || (data.medications?.[0]?.name) || 'See details',
+            notes: data.notes || data.instructions || 'No additional notes',
+            accessLevel: selectedMember.accessLevel || 'limited',
+            category: 'Prescription',
+            isEmergency: data.isEmergency || false
+          };
+        });
+
+        // Apply access level filtering (Reality logic)
+        if (selectedMember.uid !== currentUser.uid && selectedMember.accessLevel === 'limited') {
+          records = records.filter(r => r.isEmergency);
+        }
+
+        setFamilyRecords(records);
+      } catch (error) {
+        console.error('Error fetching family records:', error);
+        toast.error('Failed to load family medical history');
+      } finally {
+        setRecordsLoading(false);
+      }
+    };
+
+    if (activeTab === 4) { // Health Records tab
+      fetchFamilyRecords();
     }
+  }, [selectedMember, currentUser, activeTab]);
 
-    setFilteredRecords(accessibleRecords);
+  // Special listener for emergency mode
+  useEffect(() => {
+    if (isEmergencyMode) {
+      // In emergency mode, we might want to load records for ALL emergency contacts
+      console.log("Emergency mode records filter active");
+    }
   }, [isEmergencyMode]);
 
   // Subscribe to notifications
@@ -546,8 +596,8 @@ const EnhancedFamilyDashboard = () => {
               <button
                 onClick={isEmergencyMode ? deactivateEmergencyAccess : activateEmergencyAccess}
                 className={`w-full px-6 py-3 rounded-lg font-semibold transition-all ${isEmergencyMode
-                    ? 'bg-gray-700 text-white hover:bg-gray-800'
-                    : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
+                  ? 'bg-gray-700 text-white hover:bg-gray-800'
+                  : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
                   }`}
               >
                 {isEmergencyMode ? 'Deactivate Emergency' : 'Activate Emergency'}
@@ -599,66 +649,145 @@ const EnhancedFamilyDashboard = () => {
 
   const renderHealthRecords = () => (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-lg p-8">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-white rounded-2xl shadow-xl p-8 border border-indigo-50">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Shared Health Records</h2>
-            <p className="text-gray-600 mt-1">
-              Showing {filteredRecords.length} of {mockSharedRecords.length} records
+            <h2 className="text-3xl font-black text-gray-900 tracking-tight">Family Medical History</h2>
+            <p className="text-gray-500 mt-1 font-medium">
+              {selectedMember
+                ? `Viewing records for ${selectedMember.name}`
+                : "Select a family member to view their shared medical history"}
             </p>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-4">
             {isEmergencyMode && (
-              <span className="px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                Emergency Mode Active
+              <span className="px-4 py-2 rounded-full text-sm font-bold bg-red-100 text-red-700 animate-pulse border border-red-200">
+                Emergency Access Active
               </span>
             )}
           </div>
         </div>
 
-        {filteredRecords.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <span className="material-icons text-6xl">description</span>
+        {/* Member Selector Strip - Including Self */}
+        <div className="flex gap-4 overflow-x-auto pb-4 mb-8 custom-scrollbar">
+          <button
+            onClick={() => setSelectedMember({ uid: currentUser.uid, name: 'Me', relationship: 'Owner', photoURL: currentUser.photoURL, accessLevel: 'full' })}
+            className={`flex items-center gap-3 p-3 rounded-2xl transition-all border-2 flex-shrink-0 ${selectedMember?.uid === currentUser.uid
+              ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100'
+              : 'bg-white border-gray-100 text-gray-700 hover:border-indigo-200 hover:bg-gray-50'
+              }`}
+          >
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold border-2 border-white/20">
+              {currentUser?.displayName?.charAt(0) || 'M'}
             </div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">No Records Available</h3>
-            <p className="text-gray-600">
-              {isEmergencyMode
-                ? "No emergency records are currently available."
-                : "No health records are currently shared with your access level."
-              }
+            <div className="text-left">
+              <p className="font-bold text-sm whitespace-nowrap">My Profile</p>
+              <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedMember?.uid === currentUser.uid ? 'text-indigo-100' : 'text-gray-400'}`}>Private</p>
+            </div>
+          </button>
+
+          {familyMembers.map((member) => (
+            <button
+              key={member.uid || member.id}
+              onClick={() => setSelectedMember(member)}
+              className={`flex items-center gap-3 p-3 rounded-2xl transition-all border-2 flex-shrink-0 ${selectedMember?.uid === member.uid
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100'
+                : 'bg-white border-gray-100 text-gray-700 hover:border-indigo-200 hover:bg-gray-50'
+                }`}
+            >
+              <img
+                src={member.photoURL || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=4f46e5&color=fff&size=32`}
+                alt={member.name}
+                className="w-10 h-10 rounded-full border-2 border-white/20"
+              />
+              <div className="text-left">
+                <p className="font-bold text-sm whitespace-nowrap">{member.name}</p>
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedMember?.uid === member.uid ? 'text-indigo-100' : 'text-gray-400'
+                  }`}>
+                  {member.relationship}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {recordsLoading ? (
+          <div className="text-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+            <p className="text-gray-500 font-medium tracking-wide">Retrieving medical archives...</p>
+          </div>
+        ) : !selectedMember ? (
+          <div className="text-center py-24 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
+            <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+              <span className="material-icons text-4xl text-indigo-300">account_circle</span>
+            </div>
+            <h3 className="text-xl font-black text-gray-800 mb-2">Member Profiles</h3>
+            <p className="text-gray-500 max-w-xs mx-auto">Select a family member from the list above to view their approved health records and prescriptions.</p>
+          </div>
+        ) : familyRecords.length === 0 ? (
+          <div className="text-center py-24 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
+            <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+              <span className="material-icons text-4xl text-gray-300">no_sim</span>
+            </div>
+            <h3 className="text-xl font-black text-gray-800 mb-2">No Records Shared</h3>
+            <p className="text-gray-500 max-w-xs mx-auto">
+              {selectedMember.name} hasn't shared any medical records or prescriptions with your access level yet.
             </p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {filteredRecords.map((record) => (
-              <div key={record.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900 text-lg">{record.diagnosis}</h3>
-                    <p className="text-gray-600">{record.doctor} • {record.category}</p>
-                    <p className="text-sm text-gray-500">{record.date}</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-3 py-1 text-xs rounded-full font-medium ${getAccessLevelColor(record.accessLevel)}`}>
-                      {record.accessLevel}
-                    </span>
-                    {record.isEmergency && (
-                      <span className="px-3 py-1 bg-red-100 text-red-800 text-xs rounded-full font-medium">
-                        Emergency
+          <div className="grid gap-6">
+            {familyRecords.map((record) => (
+              <div key={record.id} className="group bg-white border border-gray-100 rounded-3xl p-8 hover:shadow-2xl hover:shadow-indigo-100/50 transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex flex-col md:flex-row md:items-start justify-between mb-6">
+                  <div className="flex items-center gap-4 mb-4 md:mb-0">
+                    <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
+                      <span className="material-icons text-2xl">
+                        {record.category === 'Prescription' ? 'medication' : 'assignment'}
                       </span>
+                    </div>
+                    <div>
+                      <h3 className="font-black text-2xl text-gray-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{record.diagnosis}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-gray-500 font-bold text-sm tracking-wide">{record.doctor}</p>
+                        <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                        <p className="text-indigo-500 font-bold text-sm">{record.date}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`px-4 py-2 text-[10px] rounded-full font-black uppercase tracking-[0.1em] border-2 ${getAccessLevelColor(record.accessLevel || selectedMember.accessLevel)}`}>
+                      {record.accessLevel || selectedMember.accessLevel} Access
+                    </span>
+                    {selectedMember.accessLevel === 'full' && (
+                      <button
+                        onClick={() => toast.success('Record saved to your health history')}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                      >
+                        <span className="material-icons text-sm">save_alt</span>
+                        Save to History
+                      </button>
                     )}
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium text-gray-800 mb-2">Prescription</h4>
-                    <p className="text-gray-600">{record.prescription}</p>
+                <div className="grid md:grid-cols-2 gap-8 mt-4 pt-6 border-t border-gray-50">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <span className="material-icons text-sm">pill</span>
+                      Main Prescription
+                    </h4>
+                    <p className="text-lg text-gray-800 font-bold bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                      {record.prescription}
+                    </p>
                   </div>
-                  <div>
-                    <h4 className="font-medium text-gray-800 mb-2">Notes</h4>
-                    <p className="text-gray-600">{record.notes}</p>
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <span className="material-icons text-sm">notes</span>
+                      Clinical Notes
+                    </h4>
+                    <p className="text-lg text-gray-600 font-medium leading-relaxed italic border-l-4 border-indigo-100 pl-6">
+                      {record.notes}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -698,7 +827,66 @@ const EnhancedFamilyDashboard = () => {
       case 4: // Health Records
         return renderHealthRecords();
       case 5: // File Storage
-        return <SmartReportAnalyzer />;
+        return (
+          <div className="space-y-8 animate-fade-in">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div>
+                <h2 className="text-3xl font-black text-gray-900 tracking-tight">Family Vault</h2>
+                <p className="text-gray-500 font-medium">Securely store and share family medical documents</p>
+              </div>
+              <button className="flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">
+                <span className="material-icons">upload_file</span>
+                Upload Document
+              </button>
+            </div>
+
+            {/* Storage Categories */}
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+              {['All', 'Lab Reports', 'Imaging', 'Prescriptions', 'Certificates'].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveFileCategory(cat)}
+                  className={`px-6 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${activeFileCategory === cat
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                    : 'bg-white text-gray-600 border border-gray-100 hover:border-indigo-200'
+                    }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Document Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {familyFiles
+                .filter(f => activeFileCategory === 'All' || f.type === activeFileCategory)
+                .map(file => (
+                  <div key={file.id} className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-lg hover:shadow-2xl transition-all group relative">
+                    <div className="flex justify-between items-start mb-6">
+                      <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-600 transition-colors group-hover:bg-indigo-600 group-hover:text-white">
+                        <span className="material-icons text-3xl">
+                          {file.type === 'Imaging' ? 'image' : 'description'}
+                        </span>
+                      </div>
+                      <button className="p-2 text-gray-400 hover:text-indigo-600">
+                        <span className="material-icons">more_vert</span>
+                      </button>
+                    </div>
+                    <h3 className="text-lg font-black text-gray-900 group-hover:text-indigo-600 transition-colors mb-1 truncate">{file.name}</h3>
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{file.type}</span>
+                      <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                      <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">{file.owner}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-50">
+                      <span className="text-xs font-bold text-gray-400">{file.date}</span>
+                      <span className="text-xs font-black text-gray-700">{file.size}</span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        );
       default:
         return renderOverview();
     }
@@ -787,8 +975,8 @@ const EnhancedFamilyDashboard = () => {
                 <button
                   key={idx}
                   className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-medium transition-all relative ${activeTab === idx
-                      ? 'bg-indigo-100 text-indigo-900 shadow-sm'
-                      : 'hover:bg-gray-50 text-gray-700 hover:text-gray-900'
+                    ? 'bg-indigo-100 text-indigo-900 shadow-sm'
+                    : 'hover:bg-gray-50 text-gray-700 hover:text-gray-900'
                     }`}
                   onClick={() => {
                     setActiveTab(idx);
