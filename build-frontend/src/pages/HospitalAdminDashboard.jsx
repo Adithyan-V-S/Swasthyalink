@@ -10,7 +10,7 @@ const HospitalAdminDashboard = () => {
     const [blockchainStatus, setBlockchainStatus] = useState(null);
     const [loading, setLoading] = useState(false);
     const [showAddBranch, setShowAddBranch] = useState(false);
-    const [newBranch, setNewBranch] = useState({ name: '', address: '', phone: '' });
+    const [newBranch, setNewBranch] = useState({ name: '', address: '', phone: '', adminEmail: '', adminPassword: '' });
     const { logout } = useAuth();
     const navigate = useNavigate();
 
@@ -32,10 +32,13 @@ const HospitalAdminDashboard = () => {
     };
 
     const handleCreateBranch = async () => {
-        if (!newBranch.name || !newBranch.address) return;
+        if (!newBranch.name || !newBranch.address || !newBranch.adminEmail || !newBranch.adminPassword) {
+            alert("Please fill in all fields, including admin credentials.");
+            return;
+        }
         setLoading(true);
         try {
-            const companyId = "abc-hospital-group"; // Linking to your group
+            const companyId = "abc-hospital-group";
 
             const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/createHospitalBranch', {
                 method: 'POST',
@@ -46,18 +49,33 @@ const HospitalAdminDashboard = () => {
                 })
             });
 
-            if (response.ok) {
-                setNewBranch({ name: '', address: '', phone: '' });
+            const result = await response.json();
+            if (response.ok && result.success) {
+                setNewBranch({ name: '', address: '', phone: '', adminEmail: '', adminPassword: '' });
                 setShowAddBranch(false);
-                fetchBranches(); // Fetch real data from Firestore
-                alert("New branch registered successfully in Firestore!");
+                fetchBranches();
+                alert(`Branch created successfully!\n\nAdmin Login:\nEmail: ${result.adminEmail}\nPassword: ${newBranch.adminPassword}`);
             } else {
-                const err = await response.json();
-                alert("Error: " + err.error);
+                alert("Error: " + (result.error || "Unknown error"));
             }
         } catch (error) {
             console.error("Failed to create branch:", error);
-            alert("Cloud Function failed. Make sure your backend is deployed.");
+            alert("Cloud Function failed.");
+        }
+        setLoading(false);
+    };
+
+    const handleDeleteBranch = async (branchId, branchName) => {
+        if (!window.confirm(`Are you sure you want to delete the ${branchName} branch? This action cannot be undone.`)) return;
+        setLoading(true);
+        try {
+            const { deleteDoc } = await import('firebase/firestore');
+            await deleteDoc(doc(db, "hospital_branches", branchId));
+            alert("Branch deleted successfully.");
+            fetchBranches();
+        } catch (error) {
+            console.error("Error deleting branch:", error);
+            alert("Failed to delete branch.");
         }
         setLoading(false);
     };
@@ -176,12 +194,31 @@ const HospitalAdminDashboard = () => {
                                         onChange={(e) => setNewBranch({ ...newBranch, phone: e.target.value })}
                                         className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 outline-none focus:border-blue-500 text-white"
                                     />
+                                    <div className="md:col-span-2 space-y-4 pt-4 border-t border-slate-700">
+                                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Branch Admin Credentials</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <input
+                                                type="email"
+                                                placeholder="Admin Email"
+                                                value={newBranch.adminEmail}
+                                                onChange={(e) => setNewBranch({ ...newBranch, adminEmail: e.target.value })}
+                                                className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 outline-none focus:border-blue-500 text-white"
+                                            />
+                                            <input
+                                                type="password"
+                                                placeholder="Admin Password"
+                                                value={newBranch.adminPassword}
+                                                onChange={(e) => setNewBranch({ ...newBranch, adminPassword: e.target.value })}
+                                                className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 outline-none focus:border-blue-500 text-white"
+                                            />
+                                        </div>
+                                    </div>
                                     <button
                                         onClick={handleCreateBranch}
                                         disabled={loading || !newBranch.name}
-                                        className="bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all disabled:opacity-50 h-full"
+                                        className="bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all disabled:opacity-50 h-12 md:col-span-2 mt-2"
                                     >
-                                        {loading ? 'Registering...' : 'Register to Firestore'}
+                                        {loading ? 'Registering...' : 'Register & Anchor to Blockchain'}
                                     </button>
                                 </div>
                             </div>
@@ -194,9 +231,19 @@ const HospitalAdminDashboard = () => {
                                         <div>
                                             <h3 className="font-bold text-lg group-hover:text-blue-400 transition-colors">{branch.name}</h3>
                                             <p className="text-sm text-slate-400 mt-1">{branch.address || 'No address specified'}</p>
+                                            {branch.adminEmail && <p className="text-xs text-blue-500 mt-2 font-medium">Admin: {branch.adminEmail}</p>}
                                         </div>
-                                        <div className="p-2 bg-slate-800 rounded-lg">
-                                            <span className="material-icons text-slate-400 group-hover:text-blue-400 text-xl">location_city</span>
+                                        <div className="flex flex-col gap-2">
+                                            <div className="p-2 bg-slate-800 rounded-lg self-end">
+                                                <span className="material-icons text-slate-400 group-hover:text-blue-400 text-xl">location_city</span>
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteBranch(branch.id, branch.name)}
+                                                className="text-slate-500 hover:text-red-500 transition-colors"
+                                                title="Delete Branch"
+                                            >
+                                                <span className="material-icons text-sm">delete</span>
+                                            </button>
                                         </div>
                                     </div>
                                     <div className="mt-4 flex justify-between items-center pt-4 border-t border-slate-800">

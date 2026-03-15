@@ -14,8 +14,11 @@ const Sidebar = ({ open, onClose }) => {
 
     const roleSpecificItems = {
       admin: [
-        { to: "/superadmindashboard", label: "Group Admin Dashboard" },
-        { to: "/admindashboard", label: "Branch Management" },
+        { to: "/hospitaladmindashboard", label: "Group Admin Dashboard" },
+        { to: "/settings", label: "Settings" },
+      ],
+      hospital_admin: [
+        { to: "/admindashboard", label: "Branch Admin Dashboard" },
         { to: "/settings", label: "Settings" },
       ],
       doctor: [
@@ -27,8 +30,12 @@ const Sidebar = ({ open, onClose }) => {
         { to: "/nursedashboard", label: "Nurse Dashboard" },
         { to: "/settings", label: "Settings" },
       ],
-      hospital_admin: [
-        { to: "/hospitaladmindashboard", label: "Hospital Admin Dashboard" },
+      pharmacy: [
+        { to: "/pharmacydashboard", label: "Pharmacy Dashboard" },
+        { to: "/settings", label: "Settings" },
+      ],
+      family: [
+        { to: "/familydashboard", label: "Family Dashboard" },
         { to: "/settings", label: "Settings" },
       ],
       patient: [

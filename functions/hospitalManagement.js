@@ -47,13 +47,13 @@ exports.createHospitalCompany = onRequest(async (req, res) => {
 });
 
 /**
- * Create a new Hospital Branch
+ * Create a new Hospital Branch (with optional admin user)
  */
 exports.createHospitalBranch = onRequest(async (req, res) => {
     setCors(res);
     if (req.method === 'OPTIONS') return res.status(204).send('');
     try {
-        const { companyId, name, address, phone } = req.body;
+        const { companyId, name, address, phone, adminEmail, adminPassword } = req.body;
         if (!companyId || !name) return res.status(400).json({ success: false, error: 'CompanyId and Name are required' });
 
         const branchId = uuidv4();
@@ -66,6 +66,34 @@ exports.createHospitalBranch = onRequest(async (req, res) => {
             createdAt: new Date().toISOString()
         };
 
+        let adminCreated = false;
+        if (adminEmail && adminPassword) {
+            try {
+                const userRecord = await admin.auth().createUser({
+                    email: adminEmail,
+                    password: adminPassword,
+                    displayName: `${name} Admin`
+                });
+
+                await db.collection('users').doc(userRecord.uid).set({
+                    uid: userRecord.uid,
+                    email: adminEmail,
+                    name: `${name} Admin`,
+                    role: 'hospital_admin',
+                    branchId: branchId,
+                    companyId: companyId,
+                    createdAt: new Date().toISOString()
+                });
+                adminCreated = true;
+            } catch (authError) {
+                console.error("Error creating branch admin:", authError);
+                if (authError.code === 'auth/email-already-exists') {
+                    return res.status(400).json({ success: false, error: 'Admin email already exists' });
+                }
+                throw authError;
+            }
+        }
+
         await db.collection('hospital_branches').doc(branchId).set(branch);
 
         // Anchor branch creation on blockchain
@@ -74,10 +102,11 @@ exports.createHospitalBranch = onRequest(async (req, res) => {
             branchId: branchId,
             companyId: companyId,
             name: name,
-            timestamp: branch.createdAt
+            timestamp: branch.createdAt,
+            adminEmail: adminEmail || 'N/A'
         });
 
-        res.json({ success: true, branch });
+        res.json({ success: true, branch, adminCreated, adminEmail });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }

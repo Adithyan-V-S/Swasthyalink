@@ -74,7 +74,7 @@ const Login = () => {
           if (isAdminEmail) {
             console.log("Admin user detected via Google redirect:", user.email);
             setPresetAdmin(true);
-            navigate("/admindashboard");
+            navigate("/hospitaladmindashboard");
             return;
           }
 
@@ -161,7 +161,7 @@ const Login = () => {
       if (isAdminEmail) {
         console.log("Admin user detected via Google popup:", user.email);
         setPresetAdmin(true);
-        navigate("/admindashboard");
+        navigate("/hospitaladmindashboard");
         return;
       }
 
@@ -299,7 +299,7 @@ const Login = () => {
       setLoading(false);
       setPresetAdmin(true);
       localStorage.setItem('testUserRole', 'admin');
-      navigate("/admindashboard");
+      navigate("/hospitaladmindashboard");
       return;
     }
 
@@ -706,7 +706,7 @@ const Login = () => {
           } else if (userData.role === 'nurse') {
             navigate("/nursedashboard");
           } else if (userData.role === 'admin') {
-            navigate("/admindashboard");
+            navigate("/hospitaladmindashboard");
           } else if (userData.role === 'pharmacy') {
             navigate("/pharmacydashboard");
           } else if (userData.role === 'hospital_admin') {
