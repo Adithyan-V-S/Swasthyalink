@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import FamilyChat from "../components/FamilyChat";
 // Use real Firebase-backed services for notifications and chat
@@ -90,12 +90,9 @@ const EnhancedFamilyDashboard = () => {
   const [selectedMember, setSelectedMember] = useState(null);
   const [familyRecords, setFamilyRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(false);
-  const [familyFiles, setFamilyFiles] = useState([
-    { id: 1, name: 'Latest Blood Work.pdf', type: 'Lab Report', date: '2024-03-10', size: '2.4 MB', owner: 'Self' },
-    { id: 2, name: 'Chest X-Ray.jpg', type: 'Imaging', date: '2024-02-15', size: '4.8 MB', owner: 'Dad' },
-    { id: 3, name: 'Vaccination Record.pdf', type: 'Certificate', date: '2024-01-05', size: '1.1 MB', owner: 'Mom' }
-  ]);
+  const [familyFiles, setFamilyFiles] = useState([]);
   const [activeFileCategory, setActiveFileCategory] = useState('All');
+  const fileInputRef = useRef(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -247,6 +244,27 @@ const EnhancedFamilyDashboard = () => {
       if (unsubscribe) unsubscribe();
     };
   }, [currentUser]);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Simulate upload - in a real app, this would go to Firebase Storage
+    const newFile = {
+      id: Date.now(),
+      name: file.name,
+      type: file.type.includes('image') ? 'Imaging' : 'Lab Reports',
+      date: new Date().toLocaleDateString(),
+      size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
+      owner: 'Self',
+      url: URL.createObjectURL(file)
+    };
+
+    setFamilyFiles(prev => [newFile, ...prev]);
+    toast.success('Document uploaded to vault!');
+    // Reset input
+    e.target.value = '';
+  };
 
   const activateEmergencyAccess = () => {
     setIsEmergencyMode(true);
@@ -834,10 +852,20 @@ const EnhancedFamilyDashboard = () => {
                 <h2 className="text-3xl font-black text-gray-900 tracking-tight">Family Vault</h2>
                 <p className="text-gray-500 font-medium">Securely store and share family medical documents</p>
               </div>
-              <button className="flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+              >
                 <span className="material-icons">upload_file</span>
                 Upload Document
               </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleFileUpload}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              />
             </div>
 
             {/* Storage Categories */}
@@ -858,32 +886,42 @@ const EnhancedFamilyDashboard = () => {
 
             {/* Document Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {familyFiles
-                .filter(f => activeFileCategory === 'All' || f.type === activeFileCategory)
-                .map(file => (
-                  <div key={file.id} className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-lg hover:shadow-2xl transition-all group relative">
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-600 transition-colors group-hover:bg-indigo-600 group-hover:text-white">
-                        <span className="material-icons text-3xl">
-                          {file.type === 'Imaging' ? 'image' : 'description'}
-                        </span>
-                      </div>
-                      <button className="p-2 text-gray-400 hover:text-indigo-600">
-                        <span className="material-icons">more_vert</span>
-                      </button>
-                    </div>
-                    <h3 className="text-lg font-black text-gray-900 group-hover:text-indigo-600 transition-colors mb-1 truncate">{file.name}</h3>
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{file.type}</span>
-                      <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                      <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">{file.owner}</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-50">
-                      <span className="text-xs font-bold text-gray-400">{file.date}</span>
-                      <span className="text-xs font-black text-gray-700">{file.size}</span>
-                    </div>
+              {familyFiles.filter(f => activeFileCategory === 'All' || f.type === activeFileCategory).length === 0 ? (
+                <div className="col-span-full py-20 text-center bg-white/50 rounded-[32px] border-2 border-dashed border-gray-100">
+                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="material-icons text-gray-300 text-3xl">folder_open</span>
                   </div>
-                ))}
+                  <h3 className="text-lg font-black text-gray-800">No Documents Found</h3>
+                  <p className="text-sm text-gray-500">Upload medical files to start building your family vault.</p>
+                </div>
+              ) : (
+                familyFiles
+                  .filter(f => activeFileCategory === 'All' || f.type === activeFileCategory)
+                  .map(file => (
+                    <div key={file.id} className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-lg hover:shadow-2xl transition-all group relative">
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-600 transition-colors group-hover:bg-indigo-600 group-hover:text-white">
+                          <span className="material-icons text-3xl">
+                            {file.type === 'Imaging' ? 'image' : 'description'}
+                          </span>
+                        </div>
+                        <button className="p-2 text-gray-400 hover:text-indigo-600">
+                          <span className="material-icons">more_vert</span>
+                        </button>
+                      </div>
+                      <h3 className="text-lg font-black text-gray-900 group-hover:text-indigo-600 transition-colors mb-1 truncate">{file.name}</h3>
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{file.type}</span>
+                        <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                        <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">{file.owner}</span>
+                      </div>
+                      <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-50">
+                        <span className="text-xs font-bold text-gray-400">{file.date}</span>
+                        <span className="text-xs font-black text-gray-700">{file.size}</span>
+                      </div>
+                    </div>
+                  ))
+              )}
             </div>
           </div>
         );
