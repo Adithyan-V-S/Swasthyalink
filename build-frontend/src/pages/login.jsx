@@ -877,6 +877,7 @@ const Login = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                   <input
+                    id="login-email"
                     type="email"
                     className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     placeholder="e.g. user@health.com"
@@ -902,6 +903,7 @@ const Login = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                   <div className="relative">
                     <input
+                      id="login-password"
                       type={showPassword ? "text" : "password"}
                       className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10"
                       placeholder="Enter your password"
@@ -937,6 +939,7 @@ const Login = () => {
                   </div>
                 </div>
                 <button
+                  id="login-button"
                   type="submit"
                   className="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold text-base shadow hover:bg-indigo-700 transition-colors duration-200 mt-2"
                   disabled={loading}

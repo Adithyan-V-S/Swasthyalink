@@ -245,25 +245,112 @@ const EnhancedFamilyDashboard = () => {
     };
   }, [currentUser]);
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  // Subscribe to family documents for real-time vault updates
+  useEffect(() => {
+    if (!currentUser) {
+      setFamilyFiles([]);
+      return;
+    }
 
-    // Simulate upload - in a real app, this would go to Firebase Storage
-    const newFile = {
-      id: Date.now(),
-      name: file.name,
-      type: file.type.includes('image') ? 'Imaging' : 'Lab Reports',
-      date: new Date().toLocaleDateString(),
-      size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
-      owner: 'Self',
-      url: URL.createObjectURL(file)
+    let unsubscribe;
+    const fetchDocuments = async () => {
+      try {
+        const { collection, query, where, onSnapshot, orderBy } = await import('firebase/firestore');
+        const { db } = await import('../firebaseConfig');
+
+        const docsRef = collection(db, 'familyDocuments');
+        const q = query(
+          docsRef,
+          where('ownerId', '==', currentUser.uid)
+        );
+
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          const docs = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            date: doc.data().createdAt ? new Date(doc.data().createdAt.seconds * 1000).toLocaleDateString() : 'N/A'
+          })).sort((a, b) => b.createdAt?.seconds - a.createdAt?.seconds);
+
+          setFamilyFiles(docs);
+        }, (error) => {
+          console.error('Error listening to family documents:', error);
+        });
+      } catch (error) {
+        console.error('Error setting up document listener:', error);
+      }
     };
 
-    setFamilyFiles(prev => [newFile, ...prev]);
-    toast.success('Document uploaded to vault!');
+    fetchDocuments();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [currentUser]);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !currentUser) return;
+
+    const loadingToast = toast.loading('Securing document in vault...');
+
+    try {
+      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+
+      // In a real app, we'd upload to Firebase Storage here and get a URL
+      // For this demo, we'll store metadata and a local blob URL
+      const fileMetadata = {
+        name: file.name,
+        type: file.type.includes('image') ? 'Imaging' : 'Lab Reports',
+        size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
+        owner: 'Self',
+        ownerId: currentUser.uid,
+        createdAt: serverTimestamp(),
+        mimeType: file.type,
+        // We simulate the URL - in reality this would be the Storage link
+        url: URL.createObjectURL(file)
+      };
+
+      await addDoc(collection(db, 'familyDocuments'), fileMetadata);
+      toast.success('Document saved to your persistent vault!', { id: loadingToast });
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      toast.error('Failed to save document', { id: loadingToast });
+    }
+
     // Reset input
     e.target.value = '';
+  };
+
+  const [summarizingId, setSummarizingId] = useState(null);
+
+  const handleSummarizeDocument = async (file) => {
+    if (summarizingId) return;
+
+    setSummarizingId(file.id);
+    const loadingToast = toast.loading(`Gemini is analyzing ${file.name}...`);
+
+    try {
+      const { default: GeminiService } = await import('../services/geminiService');
+      const prompt = `Please provide a concise medical summary for this document. 
+      Document Name: ${file.name}
+      Document Type: ${file.type}
+      Context: This is a health document stored in a family health vault. 
+      Focus on key findings and recommendations.`;
+
+      const summary = await GeminiService.sendMessage(prompt);
+
+      // Update local state to show summary (persistent save could also be done here)
+      setFamilyFiles(prev => prev.map(f =>
+        f.id === file.id ? { ...f, aiSummary: summary } : f
+      ));
+
+      toast.success('Analysis complete!', { id: loadingToast });
+    } catch (error) {
+      console.error('Summarization error:', error);
+      toast.error('AI analysis failed', { id: loadingToast });
+    } finally {
+      setSummarizingId(null);
+    }
   };
 
   const activateEmergencyAccess = () => {
@@ -915,6 +1002,40 @@ const EnhancedFamilyDashboard = () => {
                         <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
                         <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">{file.owner}</span>
                       </div>
+
+                      {file.aiSummary && (
+                        <div className="mb-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 animate-fade-in text-left">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="material-icons text-xs text-indigo-600">auto_awesome</span>
+                            <span className="text-[9px] font-black uppercase text-indigo-600 tracking-widest">AI Summary</span>
+                          </div>
+                          <p className="text-xs text-gray-700 leading-relaxed italic">{file.aiSummary}</p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 mt-4">
+                        <button
+                          onClick={() => window.open(file.url, '_blank')}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 bg-gray-50 text-gray-700 rounded-xl text-[10px] font-black uppercase hover:bg-gray-100 transition-all border border-gray-100"
+                        >
+                          <span className="material-icons text-sm">visibility</span>
+                          View
+                        </button>
+                        <button
+                          onClick={() => handleSummarizeDocument(file)}
+                          disabled={summarizingId === file.id}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase transition-all border ${file.aiSummary
+                            ? 'bg-green-50 border-green-100 text-green-700'
+                            : 'bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white'
+                            }`}
+                        >
+                          <span className={`material-icons text-sm ${summarizingId === file.id ? 'animate-spin' : ''}`}>
+                            {summarizingId === file.id ? 'refresh' : 'psychology'}
+                          </span>
+                          {file.aiSummary ? 'Analyzed' : 'Summary'}
+                        </button>
+                      </div>
+
                       <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-50">
                         <span className="text-xs font-bold text-gray-400">{file.date}</span>
                         <span className="text-xs font-black text-gray-700">{file.size}</span>

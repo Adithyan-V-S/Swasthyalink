@@ -5,6 +5,7 @@ import * as poseDetection from '@tensorflow-models/pose-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import confetti from 'canvas-confetti';
 import { logPhysioSession, logInjuryRisk } from '../../services/physioService';
+import BodyHealthScanner from './BodyHealthScanner';
 
 // Exercise Database with Demonstration Content
 const EXERCISE_DATA = {
@@ -49,6 +50,24 @@ const EXERCISE_DATA = {
         demoUrl: '/exercises/hand_stretch.png',
         instructions: 'Spread your arms wide apart, then bring them together until your palms touch in front of you. This improves chest and arm flexibility.',
         checks: ['clasp', 'alignment']
+    },
+    neck_rotation: {
+        name: 'Neck Rotation',
+        demoUrl: '/exercises/neck_rotation.png',
+        instructions: 'Slowly turn your head to the left, then to the right. Keep your chin level and shoulders still.',
+        checks: ['rotation', 'stability']
+    },
+    neck_tilt: {
+        name: 'Neck Tilt',
+        demoUrl: '/exercises/neck_tilt.png',
+        instructions: 'Gently tilt your head up to look at the ceiling, then down to look at your chest.',
+        checks: ['tilt', 'smoothness']
+    },
+    neck_slide: {
+        name: 'Neck Slide',
+        demoUrl: '/exercises/neck_slide.png',
+        instructions: 'Slide your head forward and backward while keeping your chin level, like a turtle peaking out.',
+        checks: ['slide', 'alignment']
     }
 };
 
@@ -61,6 +80,7 @@ const AIExerciseCoach = () => {
     const [isSquatting, setIsSquatting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [exerciseType, setExerciseType] = useState('squat');
+    const [showScanner, setShowScanner] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [lastRepTime, setLastRepTime] = useState(0);
@@ -271,7 +291,7 @@ const AIExerciseCoach = () => {
         }
 
         // Logic branching by tracking requirements
-        const isUpperBodyOnly = ['shoulder_raise', 'arm_stretch', 'hand_stretch'].includes(exerciseTypeRef.current);
+        const isUpperBodyOnly = ['shoulder_raise', 'arm_stretch', 'hand_stretch', 'neck_rotation', 'neck_tilt', 'neck_slide'].includes(exerciseTypeRef.current);
         const isFullBody = ['pushup'].includes(exerciseTypeRef.current);
 
         // --- Lower/Full Body Logic Section ---
@@ -472,6 +492,67 @@ const AIExerciseCoach = () => {
                         }
                     }
                 }
+            } else if (exerciseTypeRef.current === 'neck_rotation') {
+                const nose = keypoints[0];
+                const leftEar = keypoints[3];
+                const rightEar = keypoints[4];
+                if (nose.score > 0.4 && leftEar.score > 0.4 && rightEar.score > 0.4) {
+                    const distL = Math.abs(nose.x - leftEar.x);
+                    const distR = Math.abs(nose.x - rightEar.x);
+                    const ratio = distL / (distR || 1);
+                    if (ratio < 0.35 || ratio > 2.8) {
+                        if (!isSquattingRef.current) {
+                            setIsSquatting(true);
+                            setFeedback("Great Stretch! Return center.");
+                            speak("Good rotation.");
+                        }
+                    } else if (ratio > 0.8 && ratio < 1.25) {
+                        if (isSquattingRef.current) {
+                            setIsSquatting(false);
+                            setCount(prev => prev + 1);
+                            setFeedback("Rep Complete!");
+                        }
+                    }
+                }
+            } else if (exerciseTypeRef.current === 'neck_tilt') {
+                const nose = keypoints[0];
+                const leftEar = keypoints[3];
+                const rightEar = keypoints[4];
+                if (nose.score > 0.4 && leftEar.score > 0.4 && rightEar.score > 0.4) {
+                    const midEarY = (leftEar.y + rightEar.y) / 2;
+                    const earDist = Math.abs(leftEar.x - rightEar.x);
+                    const tilt = nose.y - midEarY;
+                    if (Math.abs(tilt) > earDist * 0.4) {
+                        if (!isSquattingRef.current) {
+                            setIsSquatting(true);
+                            setFeedback("Target reached! Return center.");
+                            speak("Hold the tilt.");
+                        }
+                    } else if (Math.abs(tilt) < earDist * 0.15) {
+                        if (isSquattingRef.current) {
+                            setIsSquatting(false);
+                            setCount(prev => prev + 1);
+                            setFeedback("Rep Complete!");
+                        }
+                    }
+                }
+            } else if (exerciseTypeRef.current === 'neck_slide') {
+                const headCenter = (keypoints[3].x + keypoints[4].x) / 2;
+                const shoulderCenter = (keypoints[5].x + keypoints[6].x) / 2;
+                const shoulderWidth = Math.abs(keypoints[5].x - keypoints[6].x);
+                const slideDist = Math.abs(headCenter - shoulderCenter);
+                if (slideDist > shoulderWidth * 0.15) {
+                    if (!isSquattingRef.current) {
+                        setIsSquatting(true);
+                        setFeedback("Good slide!");
+                    }
+                } else if (slideDist < shoulderWidth * 0.05) {
+                    if (isSquattingRef.current) {
+                        setIsSquatting(false);
+                        setCount(prev => prev + 1);
+                        setFeedback("Perfect Glide!");
+                    }
+                }
             }
         }
     }, [isMuted]);
@@ -547,6 +628,13 @@ const AIExerciseCoach = () => {
 
     return (
         <div className={`flex flex-col items-center p-8 bg-[#0f172a] text-white transition-all duration-300 ${isFullscreen ? 'fixed inset-0 z-[100] h-screen w-screen overflow-y-auto' : 'min-h-screen relative'}`}>
+            {/* Body Health Scanner Overlay */}
+            {showScanner && (
+                <BodyHealthScanner
+                    onSelectExercise={(id) => setExerciseType(id)}
+                    onClose={() => setShowScanner(false)}
+                />
+            )}
             {/* Header Section */}
             <div className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
                 <div className="flex items-center gap-4">
@@ -621,6 +709,16 @@ const AIExerciseCoach = () => {
                             ) : (
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                             )}
+                        </button>
+
+                        <button
+                            onClick={() => setShowScanner(true)}
+                            id="body-scan-btn"
+                            className="p-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-2"
+                            title="AI Body Health Scanner"
+                        >
+                            <span className="text-lg">🩺</span>
+                            <span className="text-sm font-bold hidden sm:inline">Body Scan</span>
                         </button>
 
                         <button
@@ -819,6 +917,9 @@ const AIExerciseCoach = () => {
                             <option value="pushup">💪 Push-ups</option>
                             <option value="lunge">🦵 Lunges</option>
                             <option value="hand_stretch">🖐️ Hand Stretching</option>
+                            <option value="neck_rotation">🔄 Neck Rotation</option>
+                            <option value="neck_tilt">↕️ Neck Tilt</option>
+                            <option value="neck_slide">↔️ Neck Slide</option>
                         </select>
 
                         {/* Adjustable Rep Target (Premium Feature UI) */}
