@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { subscribeToNotifications } from "../services/notificationService";
 import FamilyChat from "../components/FamilyChat";
-import GeminiChatbot from "../components/GeminiChatbot";
+import GeminiChatbot from "../components/GeminiChatbot"; // Internal name remains for now, but label will be Swasthyalink AI
 import AddFamilyMember from "../components/AddFamilyMember";
 import FamilyRequestManager from "../components/FamilyRequestManager";
 import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";

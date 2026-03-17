@@ -327,7 +327,7 @@ const EnhancedFamilyDashboard = () => {
     if (summarizingId) return;
 
     setSummarizingId(file.id);
-    const loadingToast = toast.loading(`Gemini is analyzing ${file.name}...`);
+    const loadingToast = toast.loading(`Swasthyalink AI is analyzing ${file.name}...`);
 
     try {
       const { default: GeminiService } = await import('../services/geminiService');

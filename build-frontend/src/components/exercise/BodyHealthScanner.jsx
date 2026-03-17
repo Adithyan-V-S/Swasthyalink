@@ -258,18 +258,22 @@ export default function BodyHealthScanner({ onSelectExercise, onClose }) {
 
                         {/* Countdown Overlay */}
                         {scanState === SCAN_STATES.SCANNING && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-indigo-950/40">
-                                <div className="text-center">
-                                    <div className="text-7xl font-black text-indigo-300 animate-pulse">{countdown}</div>
-                                    <p className="text-white font-semibold mt-2">Hold your position...</p>
+                            <>
+                                <div className="absolute inset-0 flex items-center justify-center bg-indigo-950/40 z-30">
+                                    <div className="text-center">
+                                        <div className="text-7xl font-black text-indigo-300 animate-pulse">{countdown}</div>
+                                        <p className="text-white font-semibold mt-2">Hold your position...</p>
+                                    </div>
                                 </div>
-                            </div>
+                                {/* Scanning Line Animation */}
+                                <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent shadow-[0_0_15px_rgba(99,102,241,0.8)] z-40 animate-scan pointer-events-none"></div>
+                            </>
                         )}
                         {scanState === SCAN_STATES.ANALYSING && (
                             <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60">
                                 <div className="text-center">
                                     <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                                    <p className="text-white font-bold text-lg">Analysing with Gemini AI...</p>
+                                    <p className="text-white font-bold text-lg">Analysing with Swasthyalink AI...</p>
                                     <p className="text-slate-400 text-sm">Processing posture metrics & health indicators</p>
                                 </div>
                             </div>

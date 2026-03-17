@@ -402,7 +402,7 @@ const SmartReportAnalyzer = () => {
                                         {!analysis && (
                                             <div className="bg-indigo-50/30 p-12 rounded-[24px] border border-indigo-100/50 backdrop-blur-sm shadow-inner">
                                                 <h3 className="text-4xl font-black text-indigo-900 mb-4">Ready to Decode?</h3>
-                                                <p className="text-xl text-indigo-700/80 mb-8 leading-relaxed">Our advanced Gemini AI will analyze every line of your report and provide a detailed, plain-language explanation of your health metrics.</p>
+                                                <p className="text-xl text-indigo-700/80 mb-8 leading-relaxed">Our advanced Swasthyalink AI will analyze every line of your report and provide a detailed, plain-language explanation of your health metrics.</p>
                                                 <button
                                                     onClick={handleAnalyze}
                                                     disabled={loading}

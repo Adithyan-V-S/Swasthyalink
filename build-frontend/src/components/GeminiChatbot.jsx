@@ -7,7 +7,7 @@ const GeminiChatbot = () => {
     {
       id: 1,
       role: 'assistant',
-      content: "Hi! I'm your Gemini-powered health assistant. How can I help you today?",
+      content: "Hi! I'm your Swasthyalink AI-powered health assistant. How can I help you today?",
       timestamp: new Date(),
     },
   ]);
@@ -73,7 +73,7 @@ const GeminiChatbot = () => {
       <button
         onClick={toggleChatbot}
         className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-all duration-300 focus:outline-none"
-        aria-label="Toggle Gemini chatbot"
+        aria-label="Toggle Swasthyalink AI chatbot"
       >
         {isOpen ? (
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

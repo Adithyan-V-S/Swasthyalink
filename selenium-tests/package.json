@@ -1,0 +1,15 @@
+{
+    "name": "swasthyalink-selenium-tests",
+    "version": "1.0.0",
+    "description": "Selenium tests for Swasthyalink",
+    "main": "login_test.js",
+    "type": "module",
+    "scripts": {
+        "test:login": "node login_test.js",
+        "test:dashboard": "node dashboard_test.js"
+    },
+    "dependencies": {
+        "selenium-webdriver": "^4.28.0",
+        "chromedriver": "^133.0.0"
+    }
+}
