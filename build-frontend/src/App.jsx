@@ -32,6 +32,7 @@ import Profile from './pages/profile';
 import HealthAnalytics from './pages/HealthAnalytics';
 import AIExerciseCoach from './components/exercise/AIExerciseCoach';
 import EyeExerciseCoach from './components/exercise/EyeExerciseCoach';
+import PoseLogger from './components/exercise/PoseLogger';
 import SmartReportAnalyzer from './components/SmartReportAnalyzer';
 import NurseDashboard from './pages/NurseDashboard';
 import HospitalAdminDashboard from './pages/HospitalAdminDashboard';
@@ -41,7 +42,7 @@ import Appointments from './pages/Appointments';
 function AppContent() {
   const location = useLocation();
   const hideHeaderFooterOn = ['/login', '/register', '/admindashboard', '/hospitaladmindashboard', '/pharmacydashboard', '/nursedashboard', '/doctordashboard'];
-  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer', '/eye-exercise', '/appointments'];
+  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/familydashboard', '/settings', '/healthanalytics', '/exercise-coach', '/report-analyzer', '/eye-exercise', '/appointments', '/pose-logger'];
 
   return (
     <ErrorBoundary>
@@ -64,10 +65,12 @@ function AppContent() {
         <Route path="/admindashboard" element={<PrivateRoute requiredRole="admin"><AdminDashboard /></PrivateRoute>} />
         <Route path="/hospitaladmindashboard" element={<PrivateRoute requiredRole="hospital_admin"><HospitalAdminDashboard /></PrivateRoute>} />
         <Route path="/pharmacydashboard" element={<PrivateRoute requiredRole="pharmacy"><PharmacyDashboard /></PrivateRoute>} />
+        <Route path="/nursedashboard" element={<PrivateRoute requiredRole="nurse"><NurseDashboard /></PrivateRoute>} />
         <Route path="/familydashboard" element={<PrivateRoute><EnhancedFamilyDashboard /></PrivateRoute>} />
         <Route path="/exercise-coach" element={<PrivateRoute><AIExerciseCoach /></PrivateRoute>} />
         <Route path="/report-analyzer" element={<PrivateRoute><SmartReportAnalyzer /></PrivateRoute>} />
         <Route path="/eye-exercise" element={<PrivateRoute><EyeExerciseCoach /></PrivateRoute>} />
+        <Route path="/pose-logger" element={<PrivateRoute><PoseLogger /></PrivateRoute>} />
         <Route path="/appointments" element={<PrivateRoute requiredRole="patient"><Appointments /></PrivateRoute>} />
         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
       </Routes>
