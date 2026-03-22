@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
@@ -127,11 +128,13 @@ if (typeof window !== 'undefined') {
 }
 
 const EyeExerciseCoach = () => {
+    const navigate = useNavigate();
     const webcamRef = useRef(null);
     const canvasRef = useRef(null);
     const detectorRef = useRef(null);
     const animFrameRef = useRef(null);
     const isInitializingRef = useRef(false);
+    const lastLandmarksRef = useRef(null);
 
     const [isLoading, setIsLoading] = useState(true);
     const [modelError, setModelError] = useState(null);
@@ -216,6 +219,43 @@ const EyeExerciseCoach = () => {
         window.speechSynthesis.speak(u);
         lastSpokenRef.current = text;
     }, [isMuted, language]);
+
+    const drawFaceMesh = (landmarks, ctx, { opacity = 1 } = {}) => {
+        if (!landmarks || landmarks.length === 0) return;
+        ctx.save();
+        ctx.globalAlpha = opacity;
+
+        ctx.fillStyle = '#10b981';
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 1.5;
+
+        // Draw a sparse mesh to give the user a confident skeleton overlay
+        landmarks.forEach((kp) => {
+            if (kp && typeof kp.x === 'number' && typeof kp.y === 'number') {
+                ctx.beginPath();
+                ctx.arc(kp.x, kp.y, 1.5, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        });
+
+        if (faceLandmarksDetection.util && typeof faceLandmarksDetection.util.getAdjacentPairs === 'function') {
+            const pairs = faceLandmarksDetection.util.getAdjacentPairs(faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh);
+            if (pairs && pairs.length) {
+                pairs.forEach(([i, j]) => {
+                    const a = landmarks[i];
+                    const b = landmarks[j];
+                    if (a && b && typeof a.x === 'number' && typeof b.x === 'number') {
+                        ctx.beginPath();
+                        ctx.moveTo(a.x, a.y);
+                        ctx.lineTo(b.x, b.y);
+                        ctx.stroke();
+                    }
+                });
+            }
+        }
+
+        ctx.restore();
+    };
 
     useEffect(() => {
         const loadModel = async () => {
@@ -392,19 +432,32 @@ const EyeExerciseCoach = () => {
         if (faces && faces.length > 0) {
             if (!faceDetected) setFaceDetected(true);
             const landmarks = faces[0].keypoints;
+            lastLandmarksRef.current = landmarks;
             analyzeGaze(landmarks);
             if (canvasRef.current) {
                 const ctx = canvasRef.current.getContext('2d');
                 if (ctx) {
                     ctx.clearRect(0, 0, video.videoWidth, video.videoHeight);
+                    // Keep a lightweight mesh overlay for visual guidance
+                    drawFaceMesh(landmarks, ctx, { opacity: 0.9 });
+                    // Highlight the irises more prominently
                     landmarks.slice(468, 478).forEach(kp => {
-                        ctx.beginPath(); ctx.arc(kp.x, kp.y, 2, 0, 2 * Math.PI);
-                        ctx.fillStyle = '#10b981'; ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(kp.x, kp.y, 3, 0, 2 * Math.PI);
+                        ctx.fillStyle = '#10b981';
+                        ctx.fill();
                     });
                 }
             }
         } else {
             if (faceDetected) setFaceDetected(false);
+            if (canvasRef.current && lastLandmarksRef.current) {
+                const ctx = canvasRef.current.getContext('2d');
+                if (ctx) {
+                    ctx.clearRect(0, 0, video.videoWidth, video.videoHeight);
+                    drawFaceMesh(lastLandmarksRef.current, ctx, { opacity: 0.18 });
+                }
+            }
         }
     }, [analyzeGaze, faceDetected]);
 
@@ -451,6 +504,15 @@ const EyeExerciseCoach = () => {
             {/* Minimal Header */}
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 rounded-full bg-slate-800/60 text-white hover:bg-slate-700 transition-all"
+                        title="Go back"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
                     <span className="text-3xl">🧬</span>
                     <div>
                         <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">{t.title}</h1>
