@@ -7,6 +7,7 @@ import '@tensorflow/tfjs-backend-webgl';
 import confetti from 'canvas-confetti';
 import { logPhysioSession, logInjuryRisk } from '../../services/physioService';
 import BodyHealthScanner from './BodyHealthScanner';
+import TalkingAvatar from './TalkingAvatar';
 
 // Exercise Database with Demonstration Content
 const EXERCISE_DATA = {
@@ -105,6 +106,10 @@ const AIExerciseCoach = () => {
     const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false);
     const [jointConfidence, setJointConfidence] = useState({});
     const [canvasDebug, setCanvasDebug] = useState(false);
+    
+    // --- Talking Avatar State ---
+    const [isTalking, setIsTalking] = useState(false);
+    const [avatarExpression, setAvatarExpression] = useState('neutral');
 
     // Dynamic Alpha for smoothing
     const alpha = 0.2;
@@ -119,7 +124,15 @@ const AIExerciseCoach = () => {
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.1; // Slightly faster for real-time
-        utterance.onend = () => { lastSpokenRef.current = ""; };
+        
+        // Link to Talking Avatar
+        utterance.onstart = () => setIsTalking(true);
+        utterance.onend = () => {
+            setIsTalking(false);
+            lastSpokenRef.current = "";
+        };
+        utterance.onerror = () => setIsTalking(false);
+
         window.speechSynthesis.speak(utterance);
         lastSpokenRef.current = text;
     };
@@ -196,6 +209,20 @@ const AIExerciseCoach = () => {
             }, 250);
         }
     }, [showWorkoutSummary]);
+
+    // Update Avatar Expression based on feedback and state
+    useEffect(() => {
+        if (injuryRisk.level === 'High') {
+            setAvatarExpression('alert');
+        } else if (feedback.includes('Perfect') || feedback.includes('Elite') || feedback.includes('Excellent')) {
+            setAvatarExpression('happy');
+            // Reset to neutral after 3 seconds
+            const timer = setTimeout(() => setAvatarExpression('neutral'), 3000);
+            return () => clearTimeout(timer);
+        } else {
+            setAvatarExpression('neutral');
+        }
+    }, [feedback, injuryRisk.level]);
 
     const drawPose = (pose, ctx, { opacity = 1 } = {}) => {
         if (!pose || !pose.keypoints) return;
@@ -853,7 +880,13 @@ const AIExerciseCoach = () => {
                             <span className="text-sm font-bold uppercase tracking-widest text-indigo-400">Reference Form</span>
                             <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase">Target: Perfect</span>
                         </div>
-                        <div className={`aspect-video relative bg-black flex items-center justify-center ${isFullscreen ? 'h-[40vh]' : ''}`}>
+                        
+                        {/* 3D Talking Avatar Container */}
+                        <div className="h-[350px] w-full p-4 bg-slate-900/40">
+                            <TalkingAvatar isTalking={isTalking} expression={avatarExpression} />
+                        </div>
+
+                        <div className={`aspect-video relative bg-black flex items-center justify-center ${isFullscreen ? 'h-[30vh]' : ''}`}>
                             {EXERCISE_DATA[exerciseType] ? (
                                 <img
                                     key={exerciseType}
