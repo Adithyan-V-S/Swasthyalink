@@ -111,6 +111,10 @@ const AIExerciseCoach = () => {
     const [isTalking, setIsTalking] = useState(false);
     const [avatarExpression, setAvatarExpression] = useState('neutral');
 
+    // --- Tracking Control State ---
+    const [isTracking, setIsTracking] = useState(true);
+    const isTrackingRef = useRef(true);
+
     // Dynamic Alpha for smoothing
     const alpha = 0.2;
 
@@ -308,6 +312,7 @@ const AIExerciseCoach = () => {
     useEffect(() => { lastRepTimeRef.current = lastRepTime; }, [lastRepTime]);
     useEffect(() => { workoutModeRef.current = workoutMode; }, [workoutMode]);
     useEffect(() => { repTargetRef.current = repTarget; }, [repTarget]);
+    useEffect(() => { isTrackingRef.current = isTracking; }, [isTracking]);
 
     const analyzePose = useCallback((pose) => {
         if (!pose || !pose.keypoints || pose.keypoints.length === 0) {
@@ -673,6 +678,7 @@ const AIExerciseCoach = () => {
     };
 
     const runDetection = useCallback(async () => {
+        if (!isTrackingRef.current) return;
         if (webcamRef.current?.video?.readyState >= 2 && detector && canvasRef.current) {
             const video = webcamRef.current.video;
             const videoWidth = video.videoWidth;
@@ -868,68 +874,85 @@ const AIExerciseCoach = () => {
                         </button>
                     </div>
                 </div>
-            </div>
+            </div>            {/* Main Grid Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-7xl items-stretch">
 
-            {/* Main Grid Layout */}
-            <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-2 h-full' : 'lg:grid-cols-2'} gap-8 w-full max-w-7xl flex-1`}>
+                {/* Left Column: Unified AI Coach + Reference Form side-by-side */}
+                <div className="flex flex-col h-full">
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl flex flex-col flex-1">
 
-                {/* Left Column: Reference / Demo */}
-                <div className="flex flex-col gap-4">
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl">
-                        <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex justify-between items-center">
-                            <span className="text-sm font-bold uppercase tracking-widest text-indigo-400">Reference Form</span>
-                            <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase">Target: Perfect</span>
+                        {/* Unified Header */}
+                        <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-4">
+                                <span className="text-sm font-bold uppercase tracking-widest text-indigo-400">AI Coach</span>
+                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase">Live Guidance</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm font-bold uppercase tracking-widest text-indigo-400">Reference Form</span>
+                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase">Target: Perfect</span>
+                            </div>
                         </div>
-                        
-                        {/* 3D Talking Avatar Container */}
-                        <div className="h-[350px] w-full p-4 bg-slate-900/40">
-                            <TalkingAvatar isTalking={isTalking} expression={avatarExpression} />
-                        </div>
 
-                        <div className={`aspect-video relative bg-black flex items-center justify-center ${isFullscreen ? 'h-[30vh]' : ''}`}>
-                            {EXERCISE_DATA[exerciseType] ? (
-                                <img
-                                    key={exerciseType}
-                                    src={EXERCISE_DATA[exerciseType].demoUrl}
-                                    alt={EXERCISE_DATA[exerciseType].name}
-                                    className="w-full h-full object-contain"
-                                    onError={(e) => {
-                                        console.error("Local guide failed to load:", e);
-                                        setMediaError(true);
-                                    }}
-                                />
-                            ) : (
-                                <div className="text-gray-500 flex flex-col items-center bg-slate-900/50 w-full h-full justify-center p-8">
-                                    <div className="p-6 bg-red-500/10 rounded-full mb-4">
-                                        <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
-                                    </div>
-                                    <p className="font-bold text-gray-300 text-center mb-2">Tutorial Video Blocked</p>
-                                    <p className="text-sm text-gray-500 text-center max-w-xs mb-4">Your network might be blocking common animation sources. AI tracking will still work!</p>
-                                    <button
-                                        onClick={() => setMediaError(false)}
-                                        className="px-4 py-2 bg-indigo-500/20 text-indigo-400 rounded-lg text-sm font-bold hover:bg-indigo-500/30 transition-all"
-                                    >
-                                        Try Loading Again
-                                    </button>
+                        {/* 2-Column Body: AI Coach | Reference Form */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 flex-1 min-h-0">
+
+                            {/* Left: AI Coach Avatar */}
+                            <div className="flex flex-col border-b md:border-b-0 md:border-r border-slate-700 bg-slate-900/40">
+                                <div className="flex-1 w-full p-4 flex items-center justify-center min-h-[200px]">
+                                    <TalkingAvatar isTalking={isTalking} expression={avatarExpression} />
                                 </div>
-                            )}
+                            </div>
+
+                            {/* Right: Reference Exercise Image + Instructions */}
+                            <div className="flex flex-col">
+                                <div className="relative bg-black flex-1 flex items-center justify-center min-h-[160px]">
+                                    {EXERCISE_DATA[exerciseType] ? (
+                                        <img
+                                            key={exerciseType}
+                                            src={EXERCISE_DATA[exerciseType].demoUrl}
+                                            alt={EXERCISE_DATA[exerciseType].name}
+                                            className="w-full h-full object-contain"
+                                            style={{ maxHeight: '260px' }}
+                                            onError={(e) => {
+                                                console.error("Local guide failed to load:", e);
+                                                setMediaError(true);
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="text-gray-500 flex flex-col items-center bg-slate-900/50 w-full h-full justify-center p-8">
+                                            <div className="p-6 bg-red-500/10 rounded-full mb-4">
+                                                <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                            </div>
+                                            <p className="font-bold text-gray-300 text-center mb-2">Tutorial Video Blocked</p>
+                                            <p className="text-sm text-gray-500 text-center max-w-xs mb-4">Your network might be blocking common animation sources. AI tracking will still work!</p>
+                                            <button
+                                                onClick={() => setMediaError(false)}
+                                                className="px-4 py-2 bg-indigo-500/20 text-indigo-400 rounded-lg text-sm font-bold hover:bg-indigo-500/30 transition-all"
+                                            >
+                                                Try Loading Again
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                {/* Instructions */}
+                                <div className="p-4 border-t border-slate-700 bg-slate-900/30 shrink-0">
+                                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Instructions</h3>
+                                    <p className="text-gray-300 leading-relaxed text-sm">
+                                        {EXERCISE_DATA[exerciseType]?.instructions || "Select an exercise to begin."}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div className="bg-slate-800/50 p-6 rounded-3xl border border-slate-700">
-                        <h3 className="text-lg font-bold mb-2">Instructions</h3>
-                        <p className="text-gray-300 leading-relaxed">
-                            {EXERCISE_DATA[exerciseType]?.instructions || "Select an exercise to begin."}
-                        </p>
                     </div>
                 </div>
 
                 {/* Right Column: Live Analysis */}
                 <div className="flex flex-col gap-4">
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl relative flex-1 flex flex-col">
-                        <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex justify-between items-center shrink-0">
-                            <div className="flex items-center gap-3">
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-3xl shadow-2xl relative flex flex-col">
+                        <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex justify-between items-center shrink-0 flex-wrap gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-bold uppercase tracking-widest text-green-400">Analysis Engine</span>
                                 {classifier && exerciseType === 'shoulder_raise' && (
                                     <div className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-tighter bg-indigo-600 text-white animate-pulse">
@@ -945,6 +968,29 @@ const AIExerciseCoach = () => {
                                 <div className="px-2 py-0.5 rounded-md text-[8px] font-bold bg-slate-700 text-slate-400">
                                     Heat: {engineHeat}
                                 </div>
+                                {/* Start / Stop buttons */}
+                                <button
+                                    onClick={() => setIsTracking(true)}
+                                    disabled={isTracking}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        isTracking
+                                            ? 'bg-green-600/20 text-green-500 cursor-default opacity-60'
+                                            : 'bg-green-600 text-white hover:bg-green-500 shadow-lg shadow-green-600/30'
+                                    }`}
+                                >
+                                    Start
+                                </button>
+                                <button
+                                    onClick={() => setIsTracking(false)}
+                                    disabled={!isTracking}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        !isTracking
+                                            ? 'bg-red-500/20 text-red-400 cursor-default opacity-60'
+                                            : 'bg-red-500/10 text-red-400 hover:bg-red-500/30'
+                                    }`}
+                                >
+                                    Stop
+                                </button>
                             </div>
                             <button
                                 onClick={() => {
@@ -957,7 +1003,7 @@ const AIExerciseCoach = () => {
                                 Force Reset AI
                             </button>
                         </div>
-                        <div className={`relative bg-black flex-1 w-full ${isFullscreen ? 'h-full min-h-[50vh]' : 'aspect-video'}`}>
+                        <div className="relative bg-black w-full flex-1" style={{ minHeight: 'clamp(280px, 45vh, 520px)' }}>
                             {isLoading && (
                                 <div className="absolute inset-0 flex items-center justify-center z-30 bg-slate-900 bg-opacity-95">
                                     <div className="flex flex-col items-center">
@@ -969,7 +1015,7 @@ const AIExerciseCoach = () => {
                             <Webcam
                                 ref={webcamRef}
                                 mirrored={true}
-                                className="absolute inset-0 w-full h-full object-cover opacity-80"
+                                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: 0.85 }}
                             />
                             <canvas
                                 ref={canvasRef}
