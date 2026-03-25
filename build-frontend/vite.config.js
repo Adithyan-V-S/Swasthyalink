@@ -35,7 +35,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 5000000 // 5MB
+        maximumFileSizeToCacheInBytes: 10000000 // 10MB
       }
     })
   ],
@@ -64,9 +64,14 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          three: ['three'],
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/messaging'],
+          'vendor-tfjs': ['@tensorflow/tfjs', '@tensorflow/tfjs-backend-webgl', '@tensorflow/tfjs-backend-webgpu'],
+          'vendor-mediapipe': ['@mediapipe/pose', '@mediapipe/face_mesh'],
+          'vendor-ui': ['framer-motion', 'react-icons', 'sweetalert2'],
         },
       },
     },
+    chunkSizeWarningLimit: 1000,
   },
 });
