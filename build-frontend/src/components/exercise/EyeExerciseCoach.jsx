@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
@@ -136,9 +136,11 @@ const EyeExerciseCoach = () => {
     const isInitializingRef = useRef(false);
     const lastLandmarksRef = useRef(null);
 
+    const [searchParams] = useSearchParams();
     const [isLoading, setIsLoading] = useState(true);
     const [modelError, setModelError] = useState(null);
     const [exerciseIndex, setExerciseIndex] = useState(0);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const [isSessionActive, setIsSessionActive] = useState(false);
     const [isCalibrated, setIsCalibrated] = useState(false);
     const [language, setLanguage] = useState('en');
@@ -256,6 +258,33 @@ const EyeExerciseCoach = () => {
 
         ctx.restore();
     };
+
+    // Handle exercise redirection from search params
+    useEffect(() => {
+        const type = searchParams.get('type');
+        if (type === 'blink') {
+            setExerciseIndex(2); // EYE_EXERCISES[2] is blink
+        } else if (type === 'focus') {
+            setExerciseIndex(0); // Default to horizontal tracking for focus
+        }
+    }, [searchParams]);
+
+    // Fullscreen Toggle
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    };
+
+    useEffect(() => {
+        const handleFSChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handleFSChange);
+        return () => document.removeEventListener('fullscreenchange', handleFSChange);
+    }, []);
 
     useEffect(() => {
         const loadModel = async () => {
@@ -500,7 +529,7 @@ const EyeExerciseCoach = () => {
     const progress = Math.min(100, (count / (currentExercise.repsGoal)) * 100);
 
     return (
-        <div className="flex flex-col p-4 bg-[#0a0f1e] text-white min-h-screen overflow-hidden">
+        <div className={`flex flex-col p-4 bg-[#0a0f1e] text-white min-h-screen overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[9999]' : ''}`}>
             {/* Minimal Header */}
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-3">
@@ -525,14 +554,30 @@ const EyeExerciseCoach = () => {
                     <button onClick={() => setLanguage('ml')} className={`px-2 py-1 rounded-full text-[10px] font-bold ${language === 'ml' ? 'bg-emerald-500 text-white' : 'text-gray-400'}`}>MAL</button>
                     <div className="w-px h-3 bg-slate-700 mx-1" />
                     <button onClick={() => setIsMuted(!isMuted)} className="text-sm">{isMuted ? '🔇' : '🔊'}</button>
+                    <div className="w-px h-3 bg-slate-700 mx-1" />
+                    <button 
+                        onClick={toggleFullscreen} 
+                        className="p-1.5 hover:bg-slate-700 rounded-lg transition-all text-white/70 hover:text-white"
+                        title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                    >
+                        {isFullscreen ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                        )}
+                    </button>
                 </div>
             </div>
 
             {/* Compact Grid */}
             <div className="grid grid-cols-12 gap-4 flex-1">
                 {/* Left: Video & Main Controls */}
-                <div className="col-span-12 lg:col-span-7 flex flex-col gap-3">
-                    <div className="relative aspect-video bg-black rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl">
+                <div className={`${isFullscreen ? 'col-span-12' : 'col-span-12 lg:col-span-7'} flex flex-col gap-3 h-full`}>
+                    <div className={`relative bg-black rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl transition-all duration-500 ${isFullscreen ? 'flex-1' : 'aspect-video'}`}>
                         {!faceDetected && (
                             <div className="absolute inset-0 flex items-center justify-center z-50 bg-[#0a0f1e]/80">
                                 <div className="text-center px-6 py-3 bg-slate-900/90 rounded-2xl border border-slate-700">
@@ -593,7 +638,8 @@ const EyeExerciseCoach = () => {
                 </div>
 
                 {/* Right: Exercise Selection & Goal */}
-                <div className="col-span-12 lg:col-span-5 flex flex-col gap-3">
+                {!isFullscreen && (
+                    <div className="col-span-12 lg:col-span-5 flex flex-col gap-3">
                     <div className="bg-slate-800/30 p-4 rounded-3xl border border-white/5">
                         <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">{t.progress}</h3>
                         <div className="flex justify-between items-end mb-1">
@@ -633,12 +679,13 @@ const EyeExerciseCoach = () => {
                         )}
                     </div>
 
-                    <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5">
-                        <p className="text-[9px] text-gray-500 text-center leading-relaxed font-bold">
-                            <span className="text-emerald-400 mr-1">TIPS:</span> {t.proTip}
-                        </p>
+                        <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5">
+                            <p className="text-[9px] text-gray-500 text-center leading-relaxed font-bold">
+                                <span className="text-emerald-400 mr-1">TIPS:</span> {t.proTip}
+                            </p>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );
