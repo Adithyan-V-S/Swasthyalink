@@ -4,6 +4,7 @@ import * as tf from '@tensorflow/tfjs';
 import * as poseDetection from '@tensorflow-models/pose-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import { computePostureMetrics, analyseBodyHealth } from '../../services/bodyAnalysisService';
+import { useNavigate } from 'react-router-dom';
 
 // Map exercise names to routes/IDs
 const EXERCISE_MAP = {
@@ -17,6 +18,8 @@ const EXERCISE_MAP = {
     'Lunge': 'lunge',
     'Knee Bend': 'kneebend',
     'Push-up': 'pushup',
+    'Eye Blinking Exercise': 'eye-blink',
+    'Eye Focus Exercise': 'eye-focus',
 };
 
 const STATUS_COLOR = {
@@ -46,6 +49,7 @@ const SCAN_STATES = {
 };
 
 export default function BodyHealthScanner({ onSelectExercise, onClose }) {
+    const navigate = useNavigate();
     const webcamRef = useRef(null);
     const canvasRef = useRef(null);
     const detectorRef = useRef(null);
@@ -434,9 +438,15 @@ export default function BodyHealthScanner({ onSelectExercise, onClose }) {
                                             key={idx}
                                             onClick={() => {
                                                 const id = EXERCISE_MAP[ex.exercise];
-                                                if (id && onSelectExercise) {
-                                                    onSelectExercise(id);
-                                                    onClose();
+                                                if (id) {
+                                                    if (id.startsWith('eye-')) {
+                                                        const type = id.replace('eye-', '');
+                                                        navigate(`/eye-exercise?type=${type}`);
+                                                        onClose();
+                                                    } else if (onSelectExercise) {
+                                                        onSelectExercise(id);
+                                                        onClose();
+                                                    }
                                                 }
                                             }}
                                             className="w-full text-left bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-xl p-3 transition-all group"
