@@ -8,6 +8,7 @@ import confetti from 'canvas-confetti';
 import { logPhysioSession, logInjuryRisk } from '../../services/physioService';
 import BodyHealthScanner from './BodyHealthScanner';
 import TalkingAvatar from './TalkingAvatar';
+import { TRANSLATIONS, EXERCISE_TRANSLATIONS } from './translations';
 
 // Exercise Database with Demonstration Content
 const EXERCISE_DATA = {
@@ -78,7 +79,7 @@ const AIExerciseCoach = () => {
     const webcamRef = useRef(null);
     const canvasRef = useRef(null);
     const [detector, setDetector] = useState(null);
-    const [feedback, setFeedback] = useState("Loading AI Model...");
+    const [feedback, setFeedback] = useState("");
     const [count, setCount] = useState(0);
     const [isSquatting, setIsSquatting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -111,6 +112,21 @@ const AIExerciseCoach = () => {
     const [isTalking, setIsTalking] = useState(false);
     const [avatarExpression, setAvatarExpression] = useState('neutral');
 
+    // --- Language State ---
+    const [language, setLanguage] = useState('en');
+
+    // Translation Helper
+    const t = useCallback((key) => {
+        return TRANSLATIONS[language][key] || key;
+    }, [language]);
+
+    // Guarded Feedback Update
+    const updateFeedback = (message) => {
+        if (message !== feedback) {
+            setFeedback(message);
+        }
+    };
+
     // --- Tracking Control State ---
     const [isTracking, setIsTracking] = useState(true);
     const isTrackingRef = useRef(true);
@@ -119,17 +135,40 @@ const AIExerciseCoach = () => {
     const alpha = 0.2;
 
     // Speech Synthesis Helper
-    const speak = (text) => {
+    const speak = (text, key) => {
         if (isMuted) return;
-        if (text === lastSpokenRef.current) return; // Don't repeat identical feedback immediately
+        
+        // Use translated text if key is provided
+        const spokenText = key ? t(key) : text;
+        if (spokenText === lastSpokenRef.current) return;
 
-        // Cancel any ongoing speech
         window.speechSynthesis.cancel();
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.1; // Slightly faster for real-time
+        const utterance = new SpeechSynthesisUtterance(spokenText);
+        utterance.rate = 1.1;
         
-        // Link to Talking Avatar
+        // Voice Selection for Malayalam
+        if (language === 'ml') {
+            const voices = window.speechSynthesis.getVoices();
+            // Try to find a Malayalam voice, fallback to Hindi or any Indian English voice for better accent if ML not available
+            const mlVoice = voices.find(v => v.lang.includes('ml-IN') || v.lang.includes('ml'));
+            if (mlVoice) {
+                utterance.voice = mlVoice;
+                utterance.lang = 'ml-IN';
+            } else {
+                // Fallback to Hindi which often has better phonetic match for Malayalam characters than English
+                const hiVoice = voices.find(v => v.lang.includes('hi-IN'));
+                if (hiVoice) {
+                    utterance.voice = hiVoice;
+                    utterance.lang = 'hi-IN';
+                } else {
+                    utterance.lang = 'ml-IN'; // Still set lang for generic engines
+                }
+            }
+        } else {
+            utterance.lang = 'en-US';
+        }
+        
         utterance.onstart = () => setIsTalking(true);
         utterance.onend = () => {
             setIsTalking(false);
@@ -138,7 +177,7 @@ const AIExerciseCoach = () => {
         utterance.onerror = () => setIsTalking(false);
 
         window.speechSynthesis.speak(utterance);
-        lastSpokenRef.current = text;
+        lastSpokenRef.current = spokenText;
     };
 
     useEffect(() => {
@@ -164,15 +203,15 @@ const AIExerciseCoach = () => {
                 }
 
                 setIsLoading(false);
-                setFeedback("System Calibrated. Stand in full view.");
-                speak("AI High-Precision mode active. Stand in full view to begin.");
+                updateFeedback(t('systemCalibrated'));
+                speak(null, 'aiHighPrecision');
             } catch (error) {
                 console.error("Failed to load MoveNet:", error);
-                setFeedback("Error loading AI. Please refresh.");
+                updateFeedback(t('errorLoadingAI'));
             }
         };
         loadModel();
-    }, []);
+    }, [t]);
 
     // Reset Exercise State when switching
     useEffect(() => {
@@ -185,10 +224,10 @@ const AIExerciseCoach = () => {
             elbow: 180,
             torso: exerciseType === 'shoulder_raise' ? -1 : 180
         };
-        const name = EXERCISE_DATA[exerciseType]?.name || exerciseType;
-        setFeedback(`Ready for ${name}. Stand in view.`);
-        speak(`${name} selected. Let's begin.`);
-    }, [exerciseType]);
+        const name = EXERCISE_TRANSLATIONS[language][exerciseType]?.name || exerciseType;
+        updateFeedback(`${t('readyFor')} ${name}. ${t('standInView')}`);
+        speak(`${name} ${t('selected')}`);
+    }, [exerciseType, language, t]);
 
     // --- Celebration Effect ---
     useEffect(() => {
@@ -214,13 +253,27 @@ const AIExerciseCoach = () => {
         }
     }, [showWorkoutSummary]);
 
+    const isPositive = (text) => {
+        const positiveKeys = [
+            'perfectDepth', 'eliteRep', 'excellentForm', 
+            'fullDepth', 'sharpRep', 'greatStance', 
+            'perfectRep', 'perfectGlide', 'repComplete',
+            'greatStretchReturn', 'goodBend', 'goodRotation', 'goodSlide'
+        ];
+        return positiveKeys.some(key => text === t(key) || text.startsWith(t(key)));
+    };
+
+    const isWarning = (text) => {
+        const warningKeys = ['jointsNotVisible', 'kneeValgus', 'warningHighRisk'];
+        return warningKeys.some(key => text === t(key) || text.startsWith(t(key)));
+    };
+
     // Update Avatar Expression based on feedback and state
     useEffect(() => {
         if (injuryRisk.level === 'High') {
             setAvatarExpression('alert');
-        } else if (feedback.includes('Perfect') || feedback.includes('Elite') || feedback.includes('Excellent')) {
+        } else if (isPositive(feedback)) {
             setAvatarExpression('happy');
-            // Reset to neutral after 3 seconds
             const timer = setTimeout(() => setAvatarExpression('neutral'), 3000);
             return () => clearTimeout(timer);
         } else {
@@ -316,7 +369,7 @@ const AIExerciseCoach = () => {
 
     const analyzePose = useCallback((pose) => {
         if (!pose || !pose.keypoints || pose.keypoints.length === 0) {
-            setFeedback("SEARCHING FOR PERSON...");
+            updateFeedback(t('searchingPerson'));
             setIsSquatting(false);
             return;
         }
@@ -341,14 +394,14 @@ const AIExerciseCoach = () => {
             const kneeDist = Math.abs(leftKnee.x - rightKnee.x);
             if (kneeDist < ankleDist * 0.7 && exerciseTypeRef.current !== 'lunge') {
                 if (injuryRiskRef.current.level !== 'High') {
-                    const risk = { level: 'High', message: 'Knee Valgus Detected! Keep knees aligned.' };
+                    const risk = { level: 'High', message: t('kneeValgus') };
                     injuryRiskRef.current = risk;
                     setInjuryRisk(risk);
-                    speak("Warning: High injury risk. Your knees are collapsing inward.");
+                    speak(null, 'warningHighRisk');
                     logInjuryRisk({ userId: 'patient123', riskLevel: 'High', message: 'Knee Valgus (Knees collapsing inward)', exerciseType: exerciseTypeRef.current }).catch(console.error);
                 }
             } else if (injuryRiskRef.current.level === 'High') {
-                const risk = { level: 'Low', message: 'Good posture maintained.' };
+                const risk = { level: 'Low', message: t('goodPosture') };
                 injuryRiskRef.current = risk;
                 setInjuryRisk(risk);
             }
@@ -379,8 +432,8 @@ const AIExerciseCoach = () => {
                     if (smoothKneeAngle < 95 && hipKneeDist < (kneeAnkleDist * 0.8)) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            setFeedback("Perfect Depth! Hold...");
-                            speak("Target depth reached.");
+                            updateFeedback(t('perfectDepth'));
+                            speak(null, 'targetReached');
                             frameCounterRef.current = 0;
                         }
                     }
@@ -393,14 +446,14 @@ const AIExerciseCoach = () => {
                                     setIsSquatting(false);
                                     setCount(prev => prev + 1);
                                     setLastRepTime(now);
-                                    setFeedback("Elite Rep! +1");
-                                    speak("Excellent form.");
+                                    updateFeedback(t('eliteRep'));
+                                    speak(null, 'excellentForm');
                                     frameCounterRef.current = 0;
                                 }
                             }
                         } else {
                             frameCounterRef.current = 0;
-                            setFeedback("Ready. Drive hips down.");
+                            updateFeedback(t('readyDriveHips'));
                         }
                     }
                 } else if (exerciseTypeRef.current === 'pushup') {
@@ -413,7 +466,7 @@ const AIExerciseCoach = () => {
                         if (smoothElbowAngle < 85) {
                             if (!isSquattingRef.current) {
                                 setIsSquatting(true);
-                                setFeedback("Full Depth!");
+                                updateFeedback(t('fullDepth'));
                                 frameCounterRef.current = 0;
                             }
                         }
@@ -426,7 +479,7 @@ const AIExerciseCoach = () => {
                                         setIsSquatting(false);
                                         setCount(prev => prev + 1);
                                         setLastRepTime(now);
-                                        setFeedback("Sharp Rep!");
+                                        updateFeedback(t('sharpRep'));
                                     }
                                 }
                             }
@@ -436,7 +489,7 @@ const AIExerciseCoach = () => {
                     if (smoothKneeAngle < 105) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            setFeedback("Great Stance!");
+                            updateFeedback(t('greatStance'));
                         }
                     }
                     if (smoothKneeAngle > 165) {
@@ -450,7 +503,7 @@ const AIExerciseCoach = () => {
                     if (smoothKneeAngle < 120) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            setFeedback("Good bend.");
+                            updateFeedback(t('goodBend'));
                         }
                     }
                     if (smoothKneeAngle > 165) {
@@ -462,7 +515,7 @@ const AIExerciseCoach = () => {
                     }
                 }
             } else {
-                setFeedback("SYSTEM ERROR: JOINTS NOT VISIBLE. STEP BACK.");
+                updateFeedback(t('jointsNotVisible'));
                 setIsSquatting(false);
             }
         }
@@ -482,7 +535,6 @@ const AIExerciseCoach = () => {
                     const wristDist = Math.abs(leftWrist.x - rightWrist.x);
                     const shoulderDist = Math.abs(leftShoulder.x - rightShoulder.x) || 100;
 
-                    // Relaxed closer threshold for palms together, strict wide threshold for the stretch
                     const palmsTogether = wristDist < 80 && Math.abs(leftWrist.y - rightWrist.y) < 80;
                     const armsWide = wristDist > shoulderDist * 2.1;
 
@@ -495,68 +547,61 @@ const AIExerciseCoach = () => {
                     setDebugInfo(newDebug);
 
                     if (armsWide) {
-                        // User has fully stretched their arms.
                         if (!isSquattingRef.current) {
-                            setIsSquatting(true); // Active state: Waiting for palms to touch
-                            setFeedback("Great! Bring palms together.");
-                            speak("Now bring your palms together.");
+                            setIsSquatting(true);
+                            updateFeedback(t('palmsTogether'));
+                            speak(null, 'palmsTogether');
                         } else {
-                            setFeedback("Bring palms together to finish.");
+                            updateFeedback(t('bringPalmsFinish'));
                         }
                     } else if (palmsTogether) {
-                        // User has brought palms together.
                         if (isSquattingRef.current) {
-                            // Only count if they stretched wide first.
                             const now = Date.now();
                             if (now - lastRepTimeRef.current > 1000) {
-                                setIsSquatting(false); // Reset state
+                                setIsSquatting(false);
                                 setCount(prev => prev + 1);
                                 setLastRepTime(now);
-                                setFeedback("Perfect Rep! +1");
-                                speak("Good. Open arms wide again.");
+                                updateFeedback(t('perfectRep'));
+                                speak(null, 'openArmsWide');
                             }
                         } else {
-                            // User brought palms together without stretching wide first.
-                            setFeedback("Spread your arms fully wide first.");
+                            updateFeedback(t('spreadArmsWide'));
                         }
                     }
                 } else {
-                    setFeedback("SEARCHING FOR BOTH HANDS...");
+                    updateFeedback(t('searchingHands'));
                 }
             } else if (exerciseTypeRef.current === 'shoulder_raise') {
                 if (classifier && pose.keypoints.length > 0) {
-                    // --- PURE ML INFERENCE ---
                     const inputTensor = tf.tensor2d([pose.keypoints.map(kp => [kp.x, kp.y, kp.score]).flat()]);
                     const prediction = classifier.predict(inputTensor);
                     const scores = prediction.dataSync();
-                    const isUp = scores[1] > 0.6; // Lowered from 0.8 for better local sensitivity
+                    const isUp = scores[1] > 0.6;
                     const isDown = scores[0] > 0.6;
                     
                     const upConf = Math.round(scores[1] * 100);
                     const downConf = Math.round(scores[0] * 100);
 
-                    // Force feedback overlay
                     if (isUp) {
-                        setFeedback(`AI [${upConf}%]: HAND UP`);
+                        updateFeedback(`${t('handUp')} [${upConf}%]`);
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            speak("Up position detected.");
+                            speak(null, 'upPosDetected');
                         }
                     } else if (isDown) {
-                        setFeedback(`AI [${downConf}%]: HAND DOWN`);
+                        updateFeedback(`${t('handDown')} [${downConf}%]`);
                         if (isSquattingRef.current) {
                             setIsSquatting(false);
                             setCount(prev => prev + 1);
                             setLastRepTime(Date.now());
-                            speak("Perfect rep.");
+                            speak(null, 'perfectRep');
                         }
                     } else {
-                        setFeedback(`AI SCANNING: UP(${upConf}%) DOWN(${downConf}%)`);
+                        updateFeedback(`${t('aiScanning')}: UP(${upConf}%) DOWN(${downConf}%)`);
                     }
                     inputTensor.dispose();
                     prediction.dispose();
                 } else if (leftShoulder.score > minConfidence && leftWrist.score > minConfidence) {
-                    // --- FALLBACK TO GEOMETRIC ---
                     const verticalOffset = leftShoulder.y - leftWrist.y;
                     if (verticalOffset > 0) {
                         if (!isSquattingRef.current) {
@@ -570,15 +615,14 @@ const AIExerciseCoach = () => {
                         }
                     }
                 }
-            }
- else if (exerciseTypeRef.current === 'arm_stretch') {
+            } else if (exerciseTypeRef.current === 'arm_stretch') {
                 if (leftWrist.score > minConfidence && rightWrist.score > minConfidence) {
                     const wristDist = Math.abs(leftWrist.x - rightWrist.x);
                     const shoulderDist = Math.abs(leftShoulder.x - rightShoulder.x) || 100;
                     if (wristDist > shoulderDist * 2.5) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            setFeedback("Full stretch active.");
+                            updateFeedback(t('fullStretchActive'));
                         }
                     } else if (wristDist < shoulderDist * 1.5) {
                         if (isSquattingRef.current) {
@@ -599,14 +643,14 @@ const AIExerciseCoach = () => {
                     if (ratio < 0.35 || ratio > 2.8) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            setFeedback("Great Stretch! Return center.");
-                            speak("Good rotation.");
+                            updateFeedback(t('greatStretchReturn'));
+                            speak(null, 'goodRotation');
                         }
                     } else if (ratio > 0.8 && ratio < 1.25) {
                         if (isSquattingRef.current) {
                             setIsSquatting(false);
                             setCount(prev => prev + 1);
-                            setFeedback("Rep Complete!");
+                            updateFeedback(t('repComplete'));
                         }
                     }
                 }
@@ -621,37 +665,39 @@ const AIExerciseCoach = () => {
                     if (Math.abs(tilt) > earDist * 0.4) {
                         if (!isSquattingRef.current) {
                             setIsSquatting(true);
-                            setFeedback("Target reached! Return center.");
-                            speak("Hold the tilt.");
+                            updateFeedback(t('greatStretchReturn'));
+                            speak(null, 'holdTilt');
                         }
                     } else if (Math.abs(tilt) < earDist * 0.15) {
                         if (isSquattingRef.current) {
                             setIsSquatting(false);
                             setCount(prev => prev + 1);
-                            setFeedback("Rep Complete!");
+                            updateFeedback(t('repComplete'));
                         }
                     }
                 }
             } else if (exerciseTypeRef.current === 'neck_slide') {
-                const headCenter = (keypoints[3].x + keypoints[4].x) / 2;
-                const shoulderCenter = (keypoints[5].x + keypoints[6].x) / 2;
-                const shoulderWidth = Math.abs(keypoints[5].x - keypoints[6].x);
-                const slideDist = Math.abs(headCenter - shoulderCenter);
-                if (slideDist > shoulderWidth * 0.15) {
-                    if (!isSquattingRef.current) {
-                        setIsSquatting(true);
-                        setFeedback("Good slide!");
-                    }
-                } else if (slideDist < shoulderWidth * 0.05) {
-                    if (isSquattingRef.current) {
-                        setIsSquatting(false);
-                        setCount(prev => prev + 1);
-                        setFeedback("Perfect Glide!");
+                if (keypoints[3].score > 0.4 && keypoints[4].score > 0.4 && keypoints[5].score > 0.4 && keypoints[6].score > 0.4) {
+                    const headCenter = (keypoints[3].x + keypoints[4].x) / 2;
+                    const shoulderCenter = (keypoints[5].x + keypoints[6].x) / 2;
+                    const shoulderWidth = Math.abs(keypoints[5].x - keypoints[6].x);
+                    const slideDist = Math.abs(headCenter - shoulderCenter);
+                    if (slideDist > shoulderWidth * 0.15) {
+                        if (!isSquattingRef.current) {
+                            setIsSquatting(true);
+                            updateFeedback(t('goodSlide'));
+                        }
+                    } else if (slideDist < shoulderWidth * 0.05) {
+                        if (isSquattingRef.current) {
+                            setIsSquatting(false);
+                            setCount(prev => prev + 1);
+                            updateFeedback(t('perfectGlide'));
+                        }
                     }
                 }
             }
         }
-    }, [isMuted]);
+    }, [isMuted, language, t]);
 
     const handleWorkoutComplete = () => {
         setIsResting(false);
@@ -737,7 +783,7 @@ const AIExerciseCoach = () => {
     };
 
     return (
-        <div className={`flex flex-col items-center p-8 bg-[#0f172a] text-white transition-all duration-300 ${isFullscreen ? 'fixed inset-0 z-[100] h-screen w-screen overflow-y-auto' : 'min-h-screen relative'}`}>
+        <div className={`flex flex-col items-center p-4 md:p-8 bg-[#0f172a] text-white transition-all duration-300 overflow-x-hidden ${isFullscreen ? 'fixed inset-0 z-[100] h-screen w-screen overflow-y-auto' : 'min-h-screen relative'}`}>
             {/* Body Health Scanner Overlay */}
             {showScanner && (
                 <BodyHealthScanner
@@ -746,135 +792,125 @@ const AIExerciseCoach = () => {
                 />
             )}
             {/* Header Section */}
-            <div className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
-                <div className="flex items-center gap-4">
+            <div className="w-full max-w-7xl flex flex-wrap items-center justify-between mb-8 gap-y-6 gap-x-4 px-2">
+                {/* Left Section: Back + Title */}
+                <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
                     <button
                         onClick={() => navigate(-1)}
-                        className="p-3 rounded-full bg-slate-800/60 text-white hover:bg-slate-700 transition-all"
+                        className="p-2.5 rounded-xl bg-slate-800/60 text-white hover:bg-slate-700 transition-all border border-slate-700/50"
                         title="Go back"
                     >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
                         </svg>
                     </button>
-                    <div className="p-3 bg-indigo-500 rounded-2xl shadow-lg shadow-indigo-500/30">
-                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight">AI Physiotherapy Assistant</h1>
-                        <p className="text-gray-400">Clinical-grade injury risk prevention & tracking</p>
+                    <div className="flex flex-col min-w-0">
+                        <h1 className="text-xl md:text-2xl font-black tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">{t('header')}</h1>
+                        <p className="text-[10px] md:text-xs text-indigo-400 font-bold uppercase tracking-widest hidden sm:block opacity-70">{t('subheader')}</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-6">
-                    <div className="flex flex-col items-end">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Repetitions</span>
-                        <div className="text-5xl font-black text-indigo-400 tabular-nums">
+                {/* Center/Right Section: Controls Group */}
+                <div className="flex items-center flex-wrap gap-3 md:gap-4 ml-auto">
+                    {/* Language Selector */}
+                    <div className="relative group flex-shrink">
+                        <select
+                            value={language}
+                            onChange={(e) => setLanguage(e.target.value)}
+                            className="appearance-none bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 pr-8 rounded-lg text-xs font-black text-indigo-300 hover:bg-indigo-500/20 transition-all cursor-pointer focus:ring-1 focus:ring-indigo-500 outline-none uppercase tracking-tighter"
+                        >
+                            <option value="en" className="bg-slate-900">EN</option>
+                            <option value="ml" className="bg-slate-900">മലയാളം</option>
+                        </select>
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-indigo-400">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div className="flex items-baseline gap-2 px-3 py-1.5 bg-slate-800/40 rounded-xl border border-slate-700/50">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('repetitions')}</span>
+                        <div className="text-2xl md:text-3xl font-black text-indigo-400 tabular-nums">
                             {count.toString().padStart(2, '0')}
                             {workoutMode === 'workout' && (
-                                <span className="text-2xl text-slate-600 font-bold ml-1">/ {repTarget}</span>
+                                <span className="text-sm text-slate-600 font-bold ml-1">/ {repTarget}</span>
                             )}
                         </div>
                     </div>
 
-                    <div className="hidden lg:flex flex-col items-end px-6 border-l border-slate-800">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Injury Risk</span>
-                        <div className={`text-xl font-black ${injuryRisk.level === 'High' ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>
+                    <div className="hidden sm:flex flex-col items-end px-3 border-l border-slate-800">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-0.5">{t('injuryRisk')}</span>
+                        <div className={`text-sm font-black uppercase tracking-tighter ${injuryRisk.level === 'High' ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>
                             {injuryRisk.level}
                         </div>
-                        {injuryRisk.message && injuryRisk.level === 'High' && (
-                            <span className="text-[10px] text-red-400 max-w-[120px] text-right mt-1 font-bold">{injuryRisk.message}</span>
-                        )}
                     </div>
 
-                    <div className="hidden lg:flex flex-col items-center px-6 border-l border-slate-800">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1 font-bold">MODE</span>
-                        <div className="flex bg-slate-900/50 p-1 rounded-xl border border-slate-700">
+                    <div className="hidden lg:flex flex-col items-center px-3 border-l border-slate-800">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{t('mode')}</span>
+                        <div className="flex bg-slate-900/80 p-1 rounded-lg border border-slate-700">
                             <button
                                 onClick={() => setWorkoutMode('practice')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${workoutMode === 'practice' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                className={`px-2 md:px-3 py-1 rounded-md text-[10px] font-black transition-all ${workoutMode === 'practice' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-white'}`}
                             >
-                                PRACTICE
+                                {t('practice')}
                             </button>
                             <button
                                 onClick={() => {
-                                    if (isPremium) {
-                                        setWorkoutMode('workout');
-                                    } else {
-                                        speak("This feature requires Swasthyalink Premium.");
-                                        // Auto-simulate premium for now to show user
-                                        setIsPremium(true);
-                                        setWorkoutMode('workout');
-                                    }
+                                    setIsPremium(true);
+                                    setWorkoutMode('workout');
                                 }}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${workoutMode === 'workout' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                className={`px-2 md:px-3 py-1 rounded-md text-[10px] font-black transition-all ${workoutMode === 'workout' ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-white'}`}
                             >
-                                {!isPremium && <svg className="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" /></svg>}
-                                WORKOUT
+                                {t('workout')}
                             </button>
                         </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-1 md:gap-2">
+                        <button
+                            onClick={() => setShowScanner(true)}
+                            className="p-2 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-600 hover:text-white transition-all"
+                            title="Body Scanner"
+                        >
+                            <span className="text-sm">🩺</span>
+                        </button>
+                        
+                        <button
+                            onClick={() => setIsMuted(!isMuted)}
+                            className={`p-2 rounded-lg transition-all ${isMuted ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}
+                            title={isMuted ? "Unmute" : "Mute"}
+                        >
+                            {isMuted ? (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                            ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={() => setDiagnosticsEnabled(!diagnosticsEnabled)}
+                            className={`p-2 rounded-lg transition-all ${diagnosticsEnabled ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+                            title="Diagnostics"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                        </button>
+
                         <button
                             onClick={toggleFullscreen}
-                            className="p-4 rounded-2xl bg-slate-800 text-gray-300 hover:bg-slate-700 transition-all font-medium flex items-center gap-2"
+                            className="p-2 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 transition-all font-medium"
                             title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
                         >
                             {isFullscreen ? (
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 14h6m-6 0v6m0-6l5-5m5 5l5-5m0 5v6m0-6h6m-6 0l5-5" /></svg>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14h6m-6 0v6m0-6l5-5m5 5l5-5m0 5v6m0-6h6m-6 0l5-5" /></svg>
                             ) : (
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                             )}
-                        </button>
-
-                        <button
-                            onClick={() => setShowScanner(true)}
-                            id="body-scan-btn"
-                            className="p-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-2"
-                            title="AI Body Health Scanner"
-                        >
-                            <span className="text-lg">🩺</span>
-                            <span className="text-sm font-bold hidden sm:inline">Body Scan</span>
-                        </button>
-
-                        <button
-                            onClick={() => setIsMuted(!isMuted)}
-                            className={`p-4 rounded-2xl transition-all ${isMuted ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}
-                            title={isMuted ? "Unmute Coach" : "Mute Coach"}
-                        >
-                            {isMuted ? (
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
-                            ) : (
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
-                            )}
-                        </button>
-
-                        <button
-                            onClick={() => {
-                                setDiagnosticsEnabled(!diagnosticsEnabled);
-                                speak(diagnosticsEnabled ? "Diagnostics disabled." : "Diagnostic diagnostic mode active.");
-                            }}
-                            className={`p-4 rounded-2xl transition-all ${diagnosticsEnabled ? 'bg-indigo-600 shadow-lg shadow-indigo-600/30 text-white' : 'bg-slate-800 text-gray-300 hover:bg-slate-700'}`}
-                            title="Toggle Diagnostics"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                        </button>
-
-                        <button
-                            onClick={() => setCanvasDebug(!canvasDebug)}
-                            className={`p-4 rounded-2xl transition-all ${canvasDebug ? 'bg-green-600 shadow-lg shadow-green-600/30 text-white' : 'bg-slate-800 text-gray-300 hover:bg-slate-700'}`}
-                            title="Toggle Canvas Debug"
-                        >
-                            <span className="text-sm font-bold">CANVAS</span>
                         </button>
                     </div>
                 </div>
-            </div>            {/* Main Grid Layout */}
+            </div>
+            {/* Main Grid Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-7xl items-stretch">
 
                 {/* Left Column: Unified AI Coach + Reference Form side-by-side */}
@@ -884,12 +920,12 @@ const AIExerciseCoach = () => {
                         {/* Unified Header */}
                         <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex justify-between items-center shrink-0">
                             <div className="flex items-center gap-4">
-                                <span className="text-sm font-bold uppercase tracking-widest text-indigo-400">AI Coach</span>
-                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase">Live Guidance</span>
+                                <span className="text-sm font-bold uppercase tracking-widest text-indigo-400">{t('aiCoach')}</span>
+                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase">{t('liveGuidance')}</span>
                             </div>
                             <div className="flex items-center gap-3">
-                                <span className="text-sm font-bold uppercase tracking-widest text-indigo-400">Reference Form</span>
-                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase">Target: Perfect</span>
+                                <span className="text-sm font-bold uppercase tracking-widest text-indigo-400">{t('referenceForm')}</span>
+                                <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase">{t('targetPerfect')}</span>
                             </div>
                         </div>
 
@@ -910,7 +946,7 @@ const AIExerciseCoach = () => {
                                         <img
                                             key={exerciseType}
                                             src={EXERCISE_DATA[exerciseType].demoUrl}
-                                            alt={EXERCISE_DATA[exerciseType].name}
+                                            alt={EXERCISE_TRANSLATIONS[language][exerciseType]?.name}
                                             className="w-full h-full object-contain"
                                             style={{ maxHeight: '260px' }}
                                             onError={(e) => {
@@ -938,9 +974,9 @@ const AIExerciseCoach = () => {
                                 </div>
                                 {/* Instructions */}
                                 <div className="p-4 border-t border-slate-700 bg-slate-900/30 shrink-0">
-                                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Instructions</h3>
+                                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">{t('instructions')}</h3>
                                     <p className="text-gray-300 leading-relaxed text-sm">
-                                        {EXERCISE_DATA[exerciseType]?.instructions || "Select an exercise to begin."}
+                                        {EXERCISE_TRANSLATIONS[language][exerciseType]?.instructions || t('selectExercise')}
                                     </p>
                                 </div>
                             </div>
@@ -953,17 +989,17 @@ const AIExerciseCoach = () => {
                     <div className="bg-slate-800/50 border border-slate-700 rounded-3xl shadow-2xl relative flex flex-col">
                         <div className="p-4 border-b border-slate-700 bg-slate-800/80 flex justify-between items-center shrink-0 flex-wrap gap-2">
                             <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-bold uppercase tracking-widest text-green-400">Analysis Engine</span>
+                                <span className="text-sm font-bold uppercase tracking-widest text-green-400">{t('analysisEngine')}</span>
                                 {classifier && exerciseType === 'shoulder_raise' && (
                                     <div className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-tighter bg-indigo-600 text-white animate-pulse">
-                                        Custom AI Active
+                                        {t('customAIActive')}
                                     </div>
                                 )}
                                 <div className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-tighter ${isResting ? 'bg-amber-500/20 text-amber-500' :
                                     showWorkoutSummary ? 'bg-indigo-500/20 text-indigo-400' :
                                         'bg-green-500/20 text-green-500'
                                     }`}>
-                                    {isResting ? 'Resting' : showWorkoutSummary ? 'Session Finished' : 'Active Tracking'}
+                                    {isResting ? t('resting') : showWorkoutSummary ? t('sessionFinished') : t('activeTracking')}
                                 </div>
                                 <div className="px-2 py-0.5 rounded-md text-[8px] font-bold bg-slate-700 text-slate-400">
                                     Heat: {engineHeat}
@@ -978,7 +1014,7 @@ const AIExerciseCoach = () => {
                                             : 'bg-green-600 text-white hover:bg-green-500 shadow-lg shadow-green-600/30'
                                     }`}
                                 >
-                                    Start
+                                    {t('start')}
                                 </button>
                                 <button
                                     onClick={() => setIsTracking(false)}
@@ -989,7 +1025,7 @@ const AIExerciseCoach = () => {
                                             : 'bg-red-500/10 text-red-400 hover:bg-red-500/30'
                                     }`}
                                 >
-                                    Stop
+                                    {t('stop')}
                                 </button>
                             </div>
                             <button
@@ -1000,7 +1036,7 @@ const AIExerciseCoach = () => {
                                 }}
                                 className="text-[10px] font-bold text-slate-500 hover:text-white transition-all uppercase underline underline-offset-4"
                             >
-                                Force Reset AI
+                                {t('forceResetAI')}
                             </button>
                         </div>
                         <div className="relative bg-black w-full flex-1" style={{ minHeight: 'clamp(280px, 45vh, 520px)' }}>
@@ -1008,7 +1044,7 @@ const AIExerciseCoach = () => {
                                 <div className="absolute inset-0 flex items-center justify-center z-30 bg-slate-900 bg-opacity-95">
                                     <div className="flex flex-col items-center">
                                         <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                                        <p className="font-medium text-indigo-400">Configuring Neural Network...</p>
+                                        <p className="font-medium text-indigo-400">{t('configuringNeuralNetwork')}</p>
                                     </div>
                                 </div>
                             )}
@@ -1029,13 +1065,13 @@ const AIExerciseCoach = () => {
 
                             {/* Dynamic Feedback Overlay */}
                             <div className="absolute inset-x-0 bottom-8 flex justify-center z-30 px-6">
-                                <div className={`backdrop-blur-xl px-10 py-5 rounded-2xl shadow-2xl border transition-all duration-300 transform ${feedback.includes('Great') || feedback.includes('Good')
+                                <div className={`backdrop-blur-xl px-10 py-5 rounded-2xl shadow-2xl border transition-all duration-300 transform ${isPositive(feedback)
                                     ? 'bg-green-500/20 border-green-500/50 scale-105'
-                                    : feedback.includes('back') || feedback.includes('visible')
+                                    : isWarning(feedback)
                                         ? 'bg-yellow-500/20 border-yellow-500/50 scale-100'
                                         : 'bg-indigo-500/20 border-indigo-500/50 scale-100'
                                     }`}>
-                                    <p className={`text-2xl font-black text-center ${feedback.includes('Great') || feedback.includes('Good') || feedback.includes('Parallel') || feedback.includes('Complete') ? 'text-green-400' : 'text-white'
+                                    <p className={`text-2xl font-black text-center ${isPositive(feedback) ? 'text-green-400' : 'text-white'
                                         }`}>
                                         {feedback.toUpperCase()}
                                     </p>
@@ -1047,7 +1083,7 @@ const AIExerciseCoach = () => {
                                 <div className="absolute top-4 right-4 z-[40] w-48 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl p-4 shadow-2xl animate-in slide-in-from-right duration-300">
                                     <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                                         <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-                                        AI Diagnostics
+                                        {t('diagnostics')}
                                     </h4>
                                     <div className="space-y-4">
                                         {Object.entries(jointConfidence).filter(([k]) => k !== 'side').map(([joint, conf]) => (
@@ -1066,11 +1102,11 @@ const AIExerciseCoach = () => {
                                         ))}
                                         <div className="pt-2 border-t border-slate-800">
                                             <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase">
-                                                <span>Active Side</span>
-                                                <span className="text-indigo-400">{jointConfidence.side || 'None'}</span>
+                                                <span>{t('activeSide')}</span>
+                                                <span className="text-indigo-400">{jointConfidence.side || t('none')}</span>
                                             </div>
                                             <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase mt-2">
-                                                <span>Angle</span>
+                                                <span>{t('angle')}</span>
                                                 <span className="text-white font-black">{debugInfo.kneeAngle}°</span>
                                             </div>
                                         </div>
@@ -1092,22 +1128,22 @@ const AIExerciseCoach = () => {
                             }}
                             className="flex-1 px-8 py-4 bg-slate-800 border border-slate-700 rounded-2xl font-bold text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer hover:bg-slate-700"
                         >
-                            <option value="kneebend">🦵 Knee Bend (Rehab)</option>
-                            <option value="shoulder_raise">💪 Hand Raise</option>
-                            <option value="arm_stretch">👐 Arm Stretch</option>
-                            <option value="squat">🏋️ Squats</option>
-                            <option value="pushup">💪 Push-ups</option>
-                            <option value="lunge">🦵 Lunges</option>
-                            <option value="hand_stretch">🖐️ Hand Stretching</option>
-                            <option value="neck_rotation">🔄 Neck Rotation</option>
-                            <option value="neck_tilt">↕️ Neck Tilt</option>
-                            <option value="neck_slide">↔️ Neck Slide</option>
+                            <option value="kneebend">🦵 {t('kneebend')}</option>
+                            <option value="shoulder_raise">💪 {t('shoulder_raise')}</option>
+                            <option value="arm_stretch">👐 {t('arm_stretch')}</option>
+                            <option value="squat">🏋️ {t('squat')}</option>
+                            <option value="pushup">💪 {t('pushup')}</option>
+                            <option value="lunge">🦵 {t('lunge')}</option>
+                            <option value="hand_stretch">🖐️ {t('hand_stretch')}</option>
+                            <option value="neck_rotation">🔄 {t('neck_rotation')}</option>
+                            <option value="neck_tilt">↕️ {t('neck_tilt')}</option>
+                            <option value="neck_slide">↔️ {t('neck_slide')}</option>
                         </select>
 
                         {/* Adjustable Rep Target (Premium Feature UI) */}
                         {workoutMode === 'workout' && (
                             <div className="flex items-center gap-3 bg-slate-800 border border-slate-700 px-6 py-2 rounded-2xl shadow-inner">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Target</span>
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">{t('target')}</span>
                                 <input
                                     type="number"
                                     value={repTarget}
@@ -1120,14 +1156,14 @@ const AIExerciseCoach = () => {
                         <button
                             onClick={() => {
                                 setCount(0);
-                                speak("Counter reset. Ready for next set.");
+                                speak(null, 'counterReset');
                             }}
                             className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-2"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
-                            Reset
+                            {t('reset')}
                         </button>
                     </div>
                 </div>
@@ -1138,15 +1174,15 @@ const AIExerciseCoach = () => {
             <div className="mt-12 text-gray-500 text-sm font-medium flex gap-8 items-center bg-slate-900/50 px-8 py-3 rounded-full border border-slate-800">
                 <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                    Pose Tracking: MoveNet V1
+                    {t('poseTracking')}: MoveNet V1
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
-                    Engine: TensorFlow.js
+                    {t('engine')}: TensorFlow.js
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                    Feedback: AI Logic
+                    {t('feedback')}: AI Logic
                 </div>
             </div>
 
@@ -1162,16 +1198,16 @@ const AIExerciseCoach = () => {
                             </svg>
                         </div>
 
-                        <h2 className="text-4xl font-black mb-2 text-white tracking-tight">WORKOUT COMPLETE!</h2>
-                        <p className="text-slate-400 font-medium mb-10">You've reached your daily goals with Swasthyalink Pro.</p>
+                        <h2 className="text-4xl font-black mb-2 text-white tracking-tight">{t('workoutComplete')}</h2>
+                        <p className="text-slate-400 font-medium mb-10">{t('dailyGoalsReached')}</p>
 
                         <div className="grid grid-cols-2 gap-4 mb-10">
                             <div className="bg-slate-800/80 p-6 rounded-3xl border border-slate-700 shadow-lg">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">TOTAL REPS</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{t('totalReps')}</p>
                                 <p className="text-4xl font-black text-indigo-400">{count}</p>
                             </div>
                             <div className="bg-slate-800/80 p-6 rounded-3xl border border-slate-700 shadow-lg">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">SET ACCURACY</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{t('setAccuracy')}</p>
                                 <p className="text-4xl font-black text-green-400">100%</p>
                             </div>
                         </div>
@@ -1185,7 +1221,7 @@ const AIExerciseCoach = () => {
                             }}
                             className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xl shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.02] active:scale-95"
                         >
-                            CLOSE SUMMARY
+                            {t('closeSummary')}
                         </button>
                     </div>
                 </div>
@@ -1195,13 +1231,13 @@ const AIExerciseCoach = () => {
             {isResting && (
                 <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/80 backdrop-blur-md">
                     <div className="text-center">
-                        <p className="text-xl font-bold text-indigo-400 mb-2 uppercase tracking-widest">Rest Period</p>
+                        <p className="text-xl font-bold text-indigo-400 mb-2 uppercase tracking-widest">{t('restPeriod')}</p>
                         <p className="text-9xl font-black text-white tabular-nums">{restTimeLeft}</p>
                         <button
                             onClick={() => setIsResting(false)}
                             className="mt-8 px-6 py-2 bg-slate-800 text-slate-400 rounded-full text-sm font-bold hover:text-white transition-all uppercase tracking-widest"
                         >
-                            Skip Rest
+                            {t('skipRest')}
                         </button>
                     </div>
                 </div>
