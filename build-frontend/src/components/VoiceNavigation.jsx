@@ -23,6 +23,7 @@ const COMMANDS = {
 const VoiceNavigation = () => {
     const [isListening, setIsListening] = useState(false);
     const [isWakeWordMode, setIsWakeWordMode] = useState(false);
+    const [isVoiceActive, setIsVoiceActive] = useState(false);
     const [isSwitching, setIsSwitching] = useState(false);
     const [transcript, setTranscript] = useState('');
     const navigate = useNavigate();
@@ -135,7 +136,35 @@ const VoiceNavigation = () => {
             wakeWordRecognition.onresult = (event) => {
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
                     const result = event.results[i][0].transcript.toLowerCase();
-                    if (result.includes('hey swasthya link') || result.includes('hey swasya link') || result.includes('hey swasthya')) {
+                    console.log('Voice activity detected:', result); // Debugging log
+                    
+                    // Visual feedback for voice activity
+                    setIsVoiceActive(true);
+                    setTimeout(() => setIsVoiceActive(false), 1000);
+
+                    const wakeVariants = [
+                        'hey swasthyalink', 'hey swasya link', 'hey swasthya',
+                        'hey swasthyalk', 'hey swasya link', 'hey swasthi link',
+                        'hey swasthya line', 'hey swasti link', 'hey swasthy',
+                        'a swasthya', 'a swasthya link', 'hey soft', 'hey softly',
+                        'swasthya', 'swasthyalink'
+                    ];
+
+                    const matchedVariant = wakeVariants.find(variant => result.includes(variant));
+
+                    if (matchedVariant) {
+                        console.log('Wake word matched:', matchedVariant);
+                        
+                        // Check if there's more text after the wake word (one-shot command)
+                        const commandText = result.split(matchedVariant).pop().trim();
+                        if (commandText) {
+                            console.log('Detected one-shot command:', commandText);
+                            if (handleCommand(commandText)) {
+                                wakeWordRecognition.stop();
+                                return;
+                            }
+                        }
+
                         setIsSwitching(true);
                         wakeWordRecognition.stop();
 
@@ -172,6 +201,9 @@ const VoiceNavigation = () => {
                 } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
                     console.error('Wake word recognition error:', event.error);
                 }
+                
+                // For most errors, we want to ensure it continues to attempt listening
+                // if we're still in the correct mode. onend will handle the restart.
             };
 
             wakeWordRecognitionRef.current = wakeWordRecognition;
@@ -230,13 +262,13 @@ const VoiceNavigation = () => {
                         if (!newMode && isListening) stopListening();
                     }}
                     className={`px-4 py-2 rounded-full text-xs font-semibold shadow-md transition-all duration-300 flex items-center gap-2 ${isWakeWordMode
-                        ? 'bg-indigo-600 text-white translate-x-0'
+                        ? (isVoiceActive ? 'bg-indigo-400 text-white scale-110' : 'bg-indigo-600 text-white translate-x-0')
                         : 'bg-white text-gray-600 border border-gray-200 translate-x-2'
                         }`}
                     title="Toggle 'Hey Swasthyalink' wake word"
                 >
-                    <FaVolumeUp className={isWakeWordMode ? 'animate-pulse' : ''} />
-                    {isWakeWordMode ? 'Voice Wake Active' : 'Enable Wake Word'}
+                    <FaVolumeUp className={isWakeWordMode || isVoiceActive ? 'animate-pulse' : ''} />
+                    {isWakeWordMode ? (isVoiceActive ? 'Voice Detected...' : 'Voice Wake Active') : 'Enable Wake Word'}
                 </button>
 
                 <button
