@@ -1,9 +1,13 @@
 import { Builder, By, Key, until } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome.js';
+import fs from 'fs';
+import path from 'path';
+
+const ARTIFACTS_DIR = 'C:\\Users\\vsadi\\.gemini\\antigravity\\brain\\423e6d1b-4151-407b-9abe-4c8a30ef168b';
 
 async function dashboardTest() {
     const options = new chrome.Options();
-    // options.addArguments('--headless');
+    options.addArguments('--headless');
 
     const driver = await new Builder()
         .forBrowser('chrome')
@@ -12,7 +16,7 @@ async function dashboardTest() {
 
     try {
         console.log('🧪 Starting Dashboard Navigation Test...');
-        await driver.get('http://localhost:5174/login');
+        await driver.get('http://127.0.0.1:5174/login');
 
         // Wait for login form
         await driver.wait(until.elementLocated(By.id('login-email')), 10000);
@@ -20,7 +24,8 @@ async function dashboardTest() {
         // Login
         await driver.findElement(By.id('login-email')).sendKeys('admin@gmail.com');
         await driver.findElement(By.id('login-password')).sendKeys('admin123');
-        await driver.findElement(By.id('login-button')).click();
+        const loginButton = await driver.findElement(By.id('login-button'));
+        await driver.executeScript("arguments[0].click();", loginButton);
 
         console.log('📝 Logged in.');
 
@@ -42,6 +47,12 @@ async function dashboardTest() {
         // Capture the state
         const currentUrl = await driver.getCurrentUrl();
         console.log(`✅ Dashboard Navigation Successful! Current URL: ${currentUrl}`);
+
+        // Capture screenshot
+        const screenshot = await driver.takeScreenshot();
+        const screenshotPath = path.join(ARTIFACTS_DIR, 'dashboard_success.png');
+        fs.writeFileSync(screenshotPath, screenshot, 'base64');
+        console.log(`📸 Screenshot saved to: ${screenshotPath}`);
 
     } catch (error) {
         console.error(`❌ Test Failed: ${error.message}`);
