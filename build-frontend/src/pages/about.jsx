@@ -63,50 +63,50 @@ const About = () => {
   };
 
   return (
-    <main className="min-h-[90vh] bg-gradient-to-br from-slate-50 via-indigo-50 to-blue-100 px-4 py-16 flex flex-col items-center overflow-x-hidden">
-      <section className="max-w-4xl w-full text-center mb-16 space-y-6">
-        <h2 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-700 to-blue-600 mb-4 animate-fade-in">
+    <main className="min-h-[90vh] bg-gradient-to-br from-slate-50 via-indigo-50 to-blue-100 px-4 py-8 flex flex-col items-center overflow-x-hidden">
+      <section className="max-w-4xl w-full text-center mb-8 space-y-4">
+        <h2 className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-700 to-blue-600 animate-fade-in">
           About Swasthyalink
         </h2>
-        <p className="text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto">
-          Swasthyalink is dedicated to empowering individuals with accessible healthcare information and digital tools. We believe in supporting the vision of a healthy India by aligning with key government health initiatives.
+        <p className="text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto">
+          Swasthyalink is dedicated to empowering individuals with accessible healthcare information and digital tools.
         </p>
       </section>
 
       <section className="max-w-5xl w-full" ref={sectionRef}>
-        <h3 className="text-2xl font-bold text-slate-800 mb-10 text-center tracking-tight">
+        <h3 className="text-xl font-bold text-slate-800 mb-6 text-center tracking-tight">
           Key Indian Government Health Policies
         </h3>
         
-        <div className="grid gap-8 md:grid-cols-2 relative">
+        <div className="grid gap-6 md:grid-cols-2 relative">
           {policies.map((policy, index) => (
             <div 
               key={policy.title} 
-              className={`group relative bg-white/70 backdrop-blur-md rounded-2xl p-8 border border-white/40 shadow-xl transition-all duration-700 ease-out transform cursor-default
+              className={`group relative bg-white/70 backdrop-blur-md rounded-xl p-6 border border-white/40 shadow-lg transition-all duration-700 ease-out transform cursor-default
                 ${getDirectionClass(index)}
-                hover:shadow-2xl hover:scale-[1.03] hover:bg-white/90 hover:border-indigo-200
+                hover:shadow-xl hover:scale-[1.02] hover:bg-white/90 hover:border-indigo-200
               `}
               style={{ transitionDelay: `${index * 150}ms` }}
             >
               {/* Glow Effect */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
               
               <div className="relative z-10">
-                <div className="h-1 w-20 bg-gradient-to-r from-indigo-500 to-blue-500 mb-6 rounded-full group-hover:w-full transition-all duration-500" />
-                <h4 className="text-2xl font-bold text-indigo-900 mb-4 group-hover:text-indigo-700 transition-colors">
+                <div className="h-1 w-16 bg-gradient-to-r from-indigo-500 to-blue-500 mb-4 rounded-full group-hover:w-full transition-all duration-500" />
+                <h4 className="text-xl font-bold text-indigo-900 mb-2 group-hover:text-indigo-700 transition-colors">
                   {policy.title}
                 </h4>
-                <p className="text-slate-600 mb-6 leading-relaxed">
+                <p className="text-sm text-slate-600 mb-4 leading-normal line-clamp-3">
                   {policy.description}
                 </p>
                 <a
                   href={policy.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center text-indigo-600 font-bold hover:text-indigo-800 transition-colors group/link"
+                  className="inline-flex items-center text-sm text-indigo-600 font-bold hover:text-indigo-800 transition-colors group/link"
                 >
                   Learn More
-                  <svg className="w-5 h-5 ml-2 transform group-hover/link:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 ml-1 transform group-hover/link:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
                 </a>
