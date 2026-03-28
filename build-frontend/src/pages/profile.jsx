@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { getUserProfile } from "../services/firebaseProfileService";
+import { getUserProfile, updateUserProfile } from "../services/firebaseProfileService";
 import { getFamilyNetwork } from "../services/firebaseFamilyService";
 import { motion } from "framer-motion";
 
@@ -166,13 +166,17 @@ const Profile = () => {
 
     setIsSaving(true);
     try {
-      // Here you would typically call an API to save the profile
-      // For now, we'll just update the local state
-      setProfileData({ ...profileData, ...editData });
-      setIsEditing(false);
-      setEditData({});
-      setValidationErrors({});
-      setError('');
+      const result = await updateUserProfile(currentUser.uid, editData);
+      
+      if (result.success) {
+        setProfileData({ ...profileData, ...editData });
+        setIsEditing(false);
+        setEditData({});
+        setValidationErrors({});
+        setError('');
+      } else {
+        setError(result.error || 'Failed to save profile changes');
+      }
     } catch (error) {
       setError('Failed to save profile changes');
     } finally {
@@ -227,18 +231,6 @@ const Profile = () => {
       } catch (error) {
         setError("Failed to load family members.");
         console.error("Error loading family members:", error);
-        // Use mock family data in emergency mode
-        const mockFamily = [
-          {
-            id: 'mock-1',
-            name: '04_ADITHYAN V S INT MCA',
-            relationship: 'Child',
-            email: 'adithyanvs2026@mca.ajce.in',
-            accessLevel: 'limited',
-            isEmergencyContact: false
-          }
-        ];
-        setFamilyMembers(mockFamily);
       }
       setLoadingFamily(false);
     };
@@ -284,117 +276,134 @@ const Profile = () => {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="max-w-6xl mx-auto p-8 bg-white rounded-xl shadow-xl border border-gray-200"
-    >
-      {/* Header with Edit Button */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-5xl font-extrabold border-b-4 border-indigo-600 pb-5 text-indigo-700 drop-shadow-md">
-        Profile
-      </h1>
-        <div className="flex gap-3">
-          {!isEditing ? (
-            <button
-              onClick={startEditing}
-              className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Edit Profile
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={cancelEditing}
-                className="bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveProfile}
-                disabled={isSaving || Object.keys(validationErrors).length > 0}
-                className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isSaving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    Save Changes
-                  </>
-                )}
-              </button>
+    <div className="min-h-screen bg-transparent flex flex-col pt-4 pb-12 px-4 sm:px-6 relative">
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="max-w-6xl w-full mx-auto bg-white/70 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-white/60 overflow-hidden relative"
+      >
+        {/* Decorative Premium Gradient Header Background */}
+        <div className="absolute top-0 left-0 w-full h-36 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 z-0">
+          <div className="absolute inset-0 bg-white/10 backdrop-blur-[2px]"></div>
+          <div className="absolute bottom-0 left-0 w-full h-16 bg-gradient-to-t from-white/70 to-transparent"></div>
+        </div>
+
+        <div className="relative z-10 px-6 sm:px-12 pb-12 pt-8 mt-4 sm:mt-6">
+          {/* Header with Edit Button */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 space-y-4 sm:space-y-0">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 drop-shadow-sm tracking-tight relative inline-block">
+                My Profile
+                <div className="absolute -bottom-2 left-0 w-12 h-1 bg-indigo-600 rounded-full"></div>
+              </h1>
+              <p className="text-gray-700 mt-4 text-base font-medium">Manage your personal and medical information</p>
             </div>
+            
+            <div className="flex gap-3">
+              {!isEditing ? (
+                <button
+                  onClick={startEditing}
+                  className="bg-gray-900 text-white px-7 py-3.5 rounded-xl hover:bg-indigo-600 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 font-semibold flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit Profile
+                </button>
+              ) : (
+                <div className="flex gap-3">
+                  <button
+                    onClick={cancelEditing}
+                    className="bg-white/80 backdrop-blur-sm border border-gray-300 text-gray-700 px-6 py-3.5 rounded-xl hover:bg-gray-50 hover:shadow-sm transition-all font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveProfile}
+                    disabled={isSaving || Object.keys(validationErrors).length > 0}
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-7 py-3.5 rounded-xl shadow-md hover:shadow-lg hover:from-green-600 hover:to-emerald-700 hover:-translate-y-0.5 transition-all duration-300 font-semibold disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-red-50/90 backdrop-blur-sm border-l-4 border-red-500 text-red-700 p-4 rounded-r-lg mb-8 shadow-sm flex items-center gap-3"
+            >
+              <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span className="font-medium">{error}</span>
+            </motion.div>
           )}
-        </div>
-      </div>
 
-      {/* Error Message */}
-      {error && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6"
-        >
-          {error}
-        </motion.div>
-      )}
+          {/* Tab Navigation */}
+          <div className="flex flex-wrap shadow-[0_2px_10px_rgb(0,0,0,0.04)] mb-10 bg-gray-100/60 backdrop-blur-md p-1.5 rounded-2xl border border-white/60">
+            {[
+              { id: 'personal', label: 'Personal Info', icon: '👤' },
+              { id: 'medical', label: 'Medical Info', icon: '🏥' },
+              { id: 'emergency', label: 'Emergency', icon: '🚨' },
+              { id: 'family', label: 'Family', icon: '👨‍👩‍👧‍👦' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 min-w-[130px] flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-xl font-semibold transition-all duration-300 ${
+                  activeTab === tab.id
+                    ? 'bg-white text-indigo-700 shadow-md scale-[1.02]'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                }`}
+              >
+                <span className="text-lg">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-      {/* Tab Navigation */}
-      <div className="flex space-x-1 mb-8 bg-gray-100 p-1 rounded-lg">
-        {[
-          { id: 'personal', label: 'Personal Info', icon: '👤' },
-          { id: 'medical', label: 'Medical Info', icon: '🏥' },
-          { id: 'emergency', label: 'Emergency', icon: '🚨' },
-          { id: 'family', label: 'Family', icon: '👨‍👩‍👧‍👦' }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-md font-medium transition-colors ${
-              activeTab === tab.id
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <span>{tab.icon}</span>
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Profile Content */}
-      <div className="space-y-8">
-        {/* Personal Information Tab */}
-        {activeTab === 'personal' && (
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-gray-50 rounded-xl p-8"
-          >
-      <div className="flex flex-col md:flex-row items-center md:items-start space-y-8 md:space-y-0 md:space-x-12">
+          {/* Profile Content */}
+          <div className="space-y-8">
+            {/* Personal Information Tab */}
+            {activeTab === 'personal' && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white/50 backdrop-blur-lg rounded-3xl p-8 sm:p-10 border border-white shadow-sm"
+              >
+                <div className="flex flex-col md:flex-row items-center md:items-start space-y-8 md:space-y-0 md:space-x-12">
               {/* Profile Photo */}
-              <div className="relative">
-        <div className="w-44 h-44 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden shadow-2xl ring-4 ring-indigo-300">
-          {profileData.photoURL ? (
-            <img
-              src={profileData.photoURL}
-              alt="Profile"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <span className="text-gray-500 text-xl">No Photo</span>
-          )}
-        </div>
+              <div className="relative shrink-0 flex flex-col items-center">
+                <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden shadow-xl ring-4 ring-white border border-gray-100 relative z-20">
+                  {(profileData.photoURL || currentUser?.photoURL) ? (
+                    <img
+                      src={profileData.photoURL || currentUser?.photoURL}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-gray-400 text-sm font-semibold uppercase tracking-wider">No Photo</span>
+                  )}
+                </div>
                 {isEditing && (
                   <button
                     onClick={() => setShowPhotoUpload(true)}
@@ -430,7 +439,7 @@ const Profile = () => {
                         )}
                       </div>
                     ) : (
-                      <p className="text-lg text-gray-900">{profileData.displayName}</p>
+                      <p className="text-lg text-gray-900">{profileData?.displayName || currentUser?.displayName || "N/A"}</p>
                     )}
                   </div>
 
@@ -453,7 +462,7 @@ const Profile = () => {
                         )}
                       </div>
                     ) : (
-                      <p className="text-lg text-gray-900">{profileData.email}</p>
+                      <p className="text-lg text-gray-900">{profileData?.email || currentUser?.email || "N/A"}</p>
                     )}
                   </div>
 
@@ -578,11 +587,12 @@ const Profile = () => {
         {/* Medical Information Tab */}
         {activeTab === 'medical' && (
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            className="bg-gray-50 rounded-xl p-8"
+            transition={{ duration: 0.3 }}
+            className="bg-white/50 backdrop-blur-lg rounded-3xl p-8 sm:p-10 border border-white shadow-sm"
           >
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">Medical Information</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 border-b border-gray-200 pb-3">Medical Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Blood Group */}
               <div>
@@ -701,11 +711,12 @@ const Profile = () => {
         {/* Emergency Information Tab */}
         {activeTab === 'emergency' && (
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            className="bg-gray-50 rounded-xl p-8"
+            transition={{ duration: 0.3 }}
+            className="bg-white/50 backdrop-blur-lg rounded-3xl p-8 sm:p-10 border border-white shadow-sm"
           >
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">Emergency Information</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 border-b border-gray-200 pb-3">Emergency Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Emergency Contact Name */}
               <div>
@@ -791,11 +802,12 @@ const Profile = () => {
         {/* Family Members Tab */}
         {activeTab === 'family' && (
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            className="bg-gray-50 rounded-xl p-8"
+            transition={{ duration: 0.3 }}
+            className="bg-white/50 backdrop-blur-lg rounded-3xl p-8 sm:p-10 border border-white shadow-sm"
           >
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">Family Members</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 border-b border-gray-200 pb-3">Family Members</h3>
       {familyMembers.length === 0 ? (
         <motion.p
           initial={{ opacity: 0 }}
@@ -829,11 +841,11 @@ const Profile = () => {
                       <p><span className="font-medium">Email:</span> {member.email || "N/A"}</p>
                       <p><span className="font-medium">Access Level:</span> 
                         <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
-                          member.accessLevel === 'full' ? 'bg-green-100 text-green-800' :
-                          member.accessLevel === 'limited' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
+                          (member.accessLevel || 'limited') === 'full' ? 'bg-green-100 text-green-800' :
+                          (member.accessLevel || 'limited') === 'emergency' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
                         }`}>
-                          {member.accessLevel || "N/A"}
+                          {member.accessLevel ? member.accessLevel.charAt(0).toUpperCase() + member.accessLevel.slice(1) : 'Limited'}
                         </span>
                       </p>
                       <p><span className="font-medium">Emergency Contact:</span> 
@@ -848,8 +860,10 @@ const Profile = () => {
             )}
           </motion.div>
         )}
-      </div>
-    </motion.div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
   );
 };
 

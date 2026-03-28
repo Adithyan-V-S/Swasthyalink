@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import QRCode from "react-qr-code";
 import { auth } from "../firebaseConfig";
 import SnakeGame from "./SnakeGame";
-import heroImage from "../assets/images/hero-healthcare.jpg";
+import heroImage from "../assets/images/ai-dashboard.png";
 import { useAuth } from "../contexts/AuthContext";
 import { subscribeToNotifications, createNotification, NOTIFICATION_TYPES } from "../services/notificationService";
 import { db } from "../firebaseConfig";
@@ -10,6 +10,7 @@ import { onSnapshot, doc, getDoc, collection, query, where, orderBy, limit } fro
 import { getPendingRequests, acceptRequest, getConnectedDoctors, resendRequest } from "../services/patientDoctorService";
 import { subscribeToPatientPrescriptions, formatDate, isTestUser } from "../utils/firebaseUtils";
 import { getPatientPrescriptions } from "../services/prescriptionService";
+import { getAppointments } from "../services/appointmentService";
 import AIExerciseCoach from "../components/exercise/AIExerciseCoach";
 
 const records = [
@@ -125,6 +126,94 @@ const PatientDashboard = () => {
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [showTestNotification, setShowTestNotification] = useState(false);
   const [realOTP, setRealOTP] = useState(null);
+
+  // New states for enhanced dashboard
+  const [healthMetrics, setHealthMetrics] = useState({
+    hrv: "84 ms",
+    cholesterol: "166 mg/dl",
+    heartEfficiency: 86,
+    bp: "130/82 mmHg"
+  });
+  const [medicationReminders, setMedicationReminders] = useState([]);
+  const [medicalRecords, setMedicalRecords] = useState(records);
+  const [appointments, setAppointments] = useState([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  // Fetch Appointments and Records
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+
+    const fetchData = async () => {
+      try {
+        // Fetch Appointments
+        const appointmentData = await getAppointments(currentUser.uid, 'patient');
+        if (appointmentData && appointmentData.appointments) {
+          setAppointments(appointmentData.appointments);
+        }
+
+        // Load ML health data from localStorage if and when available
+        const savedHealthData = localStorage.getItem('healthData');
+        if (savedHealthData) {
+          const parsed = JSON.parse(savedHealthData);
+          setHealthMetrics(prev => ({
+            ...prev,
+            hrv: parsed.hrv || prev.hrv,
+            cholesterol: `${parsed.cholesterol || 166} mg/dl`,
+            bp: parsed.bloodPressure ? `${parsed.bloodPressure.systolic}/${parsed.bloodPressure.diastolic} mmHg` : prev.bp,
+            heartEfficiency: parsed.heartEfficiency || 86
+          }));
+        }
+
+        // Fetch Medical Records (if a dedicated collection exists, otherwise use proxy or mock)
+        // For now, combining with mock but ready for real fetch
+        const recordsRef = collection(db, 'medical_records');
+        const q = query(recordsRef, where('patientId', '==', currentUser.uid));
+        onSnapshot(q, (snapshot) => {
+          if (!snapshot.empty) {
+            const fetchedRecords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Sort in memory to avoid needing a Firestore composite index
+            fetchedRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+            setMedicalRecords(fetchedRecords.slice(0, 5));
+          }
+        });
+
+        setIsDataLoaded(true);
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
+      }
+    };
+
+    fetchData();
+  }, [currentUser]);
+
+  // Process Medication Reminders from Prescriptions
+  useEffect(() => {
+    if (prescriptions.length > 0) {
+      const reminders = [];
+      prescriptions.forEach(p => {
+        if (p.status === 'Active') {
+          const times = ['Morning (8 AM)', 'Afternoon (2 PM)', 'Night (8 PM)'];
+          times.forEach(time => {
+            reminders.push({
+              id: `${p.id}-${time}`,
+              medicine: p.medication,
+              time: time,
+              dosage: p.dosage,
+              status: 'Pending',
+              pulse: true
+            });
+          });
+        }
+      });
+      setMedicationReminders(reminders.slice(0, 3)); // Limit to top 3 for UI
+    }
+  }, [prescriptions]);
+
+  const handleMedAction = (id, action) => {
+    setMedicationReminders(prev => prev.map(m => 
+      m.id === id ? { ...m, status: action === 'done' ? 'Completed' : 'Snoozed', pulse: false } : m
+    ));
+  };
 
   // Move getSidebarLinks inside component to access notifications state
   const getSidebarLinks = () => [
@@ -1115,157 +1204,169 @@ const PatientDashboard = () => {
     switch (activeIdx) {
       case 0: // Dashboard
         return (
-          <>
-            {/* Top hero + KPI + QR layout */}
-            <section className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-              {/* Hero card */}
-              <div className="lg:col-span-6 bg-white rounded-2xl shadow-lg p-8 flex items-center justify-between">
-                <div>
+          <div className="space-y-8">
+            {/* Main Stats Grid */}
+            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+              
+              {/* Hero card - Glassmorphism */}
+              <div className="md:col-span-2 xl:col-span-2 bg-white/60 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-8 flex items-center justify-between hover:scale-[1.02] transition-transform duration-300 animate-fadeInLeft">
+                <div className="max-w-[60%]">
                   <h1 className="text-3xl font-extrabold text-gray-900">Hey, {currentUserInfo.name.split(' ')[0]}!</h1>
-                  <p className="mt-2 text-gray-600">Let's monitor your health.</p>
-                  <div className="mt-6 flex gap-3">
-                    <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm">HRV 84 ms</span>
-                    <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm">Cholesterol 166 mg/dl</span>
-                    <button
-                      onClick={async () => {
-                        console.log('📝 Creating test notification via service...');
-                        await createNotification({
-                          recipientId: currentUser?.uid || 'current-user-id',
-                          type: NOTIFICATION_TYPES.DOCTOR_CONNECTION_REQUEST,
-                          title: 'Test Doctor Request',
-                          message: 'Dr. Test Doctor wants to connect with you',
-                          timestamp: new Date(),
-                          read: false
-                        });
-                      }}
-                      className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-sm hover:bg-green-100"
-                    >
-                      Test Notification
-                    </button>
+                  <p className="mt-2 text-gray-600">Your health is our priority. Let's monitor your vitals today.</p>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <span className="px-3 py-1 rounded-full bg-blue-100/50 text-blue-700 text-sm font-medium border border-blue-200">HRV {healthMetrics.hrv}</span>
+                    <span className="px-3 py-1 rounded-full bg-indigo-100/50 text-indigo-700 text-sm font-medium border border-indigo-200">Cholesterol {healthMetrics.cholesterol}</span>
                   </div>
                 </div>
-                <img src={heroImage} alt="health" className="hidden md:block w-48 h-48 object-cover rounded-xl" />
+                <div className="hidden md:block w-40 h-40 bg-indigo-100 rounded-2xl overflow-hidden shadow-inner border border-white/40">
+                  <img src={heroImage} alt="health" className="w-full h-full object-cover" />
+                </div>
               </div>
 
               {/* Heart Function Efficiency */}
-              <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-800">Heart Function Efficiency</h3>
-                  <button className="text-gray-400">↗</button>
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-bold text-gray-900">86%</span>
-                    <span className="text-sm text-gray-500">Moderate</span>
-                  </div>
-                  <div className="mt-3 h-3 bg-gray-100 rounded-full">
-                    <div className="h-3 bg-green-400 rounded-full" style={{ width: '86%' }} />
+              <div className="bg-white/60 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-6 hover:scale-105 transition-transform duration-300 animate-fadeInUp" style={{ animationDelay: '200ms' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-gray-800 uppercase tracking-wider text-xs">Heart Efficiency</h3>
+                  <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${healthMetrics.heartEfficiency > 80 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {healthMetrics.heartEfficiency > 80 ? 'GOOD' : 'MODERATE'}
                   </div>
                 </div>
+                <div className="flex items-baseline gap-2 mb-2">
+                  <span className="text-4xl font-black text-gray-900">{healthMetrics.heartEfficiency}%</span>
+                </div>
+                <div className="h-3 bg-gray-200/50 rounded-full overflow-hidden border border-gray-100">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-1000 ${healthMetrics.heartEfficiency > 80 ? 'bg-green-500' : 'bg-yellow-500'}`} 
+                    style={{ width: `${healthMetrics.heartEfficiency}%` }} 
+                  />
+                </div>
+                <p className="mt-3 text-xs text-gray-500 italic">Showing stable performance over 7 days.</p>
               </div>
 
-              {/* Emergency Notifications - Only for test users */}
-              {isTestUser() && (
-                <div className="lg:col-span-3 bg-red-50 rounded-2xl shadow-lg p-6 border border-red-200">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-red-800">Emergency Alerts</h3>
-                    <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                      {notifications.filter(n => n.type === 'emergency_alert').length}
+              {/* QR Access Card */}
+              <div className="bg-white/60 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-6 flex flex-col items-center justify-center hover:scale-105 transition-transform duration-300 animate-fadeInRight" style={{ animationDelay: '400ms' }}>
+                <h3 className="font-bold text-gray-800 uppercase tracking-wider text-xs mb-3">Quick Pass QR</h3>
+                <div className="p-2 bg-white rounded-xl shadow-inner border border-gray-100">
+                  {uid ? (
+                    <QRCode value={qrValue} size={110} />
+                  ) : (
+                    <div className="w-[110px] h-[110px] flex items-center justify-center bg-gray-50 text-gray-300">
+                      <span className="material-icons animate-spin">refresh</span>
+                    </div>
+                  )}
+                </div>
+                <p className="mt-3 text-[10px] font-mono text-gray-400 bg-gray-100/50 px-2 py-1 rounded">UID: ...{uid.slice(-6)}</p>
+              </div>
+
+              {/* Blood Pressure Card */}
+              <div className="md:col-span-2 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-2xl shadow-xl p-6 text-white relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300 animate-fadeInLeft" style={{ animationDelay: '600ms' }}>
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="material-icons text-7xl">monitor_heart</span>
+                </div>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-blue-100 font-bold uppercase tracking-widest text-[10px]">Blood Pressure</h3>
+                      <p className="text-3xl font-black">{healthMetrics.bp}</p>
+                    </div>
+                    <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold border border-white/20">
+                      STABLE
                     </span>
                   </div>
-                  <div className="mt-4 space-y-2">
-                    {notifications.filter(n => n.type === 'emergency_alert').slice(0, 2).map((notification) => (
-                      <div key={notification.id} className="bg-white rounded-lg p-3 border border-red-200">
-                        <p className="text-sm font-medium text-red-800">{notification.title}</p>
-                        <p className="text-xs text-red-600 mt-1">{notification.message}</p>
-                      </div>
+                  <div className="h-16 flex items-end gap-1 px-1">
+                    {[40, 60, 45, 70, 55, 80, 65, 90, 75, 85].map((h, i) => (
+                      <div key={i} className="flex-1 bg-white/20 rounded-t-sm group-hover:bg-white/40 transition-colors" style={{ height: `${h}%` }} />
                     ))}
-                    {notifications.filter(n => n.type === 'emergency_alert').length === 0 && (
-                      <p className="text-sm text-red-600">No emergency alerts</p>
-                    )}
                   </div>
                 </div>
-              )}
-
-              {/* Integrated QR card */}
-              <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center">
-                <h3 className="font-semibold text-gray-800 mb-3">My Patient QR</h3>
-                {uid ? (
-                  <>
-                    <QRCode value={qrValue} size={140} className="mb-2" />
-                    <div className="text-xs text-gray-500 break-all mt-1">UID: {uid}</div>
-                    <div className="text-[10px] text-gray-400 break-all">{qrValue}</div>
-                  </>
-                ) : (
-                  <div className="text-gray-400">Loading QR...</div>
-                )}
               </div>
 
-              {/* Blood Pressure card */}
-              <div className="lg:col-span-5 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-2xl shadow-lg p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">Blood Pressure</h3>
-                  <span className="text-sm opacity-80">130/82 mmHg</span>
+              {/* Medication Reminder Card */}
+              <div className={`md:col-span-2 bg-white/60 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-6 hover:scale-[1.02] transition-transform duration-300 animate-fadeInRight ${medicationReminders.some(r => r.status === 'Pending') ? 'animate-pulseAlert' : ''}`} style={{ animationDelay: '800ms' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-gray-800 uppercase tracking-wider text-xs flex items-center gap-2">
+                    <span className="material-icons text-sm text-red-500">alarm</span>
+                    Smart Medication Alert
+                  </h3>
+                  {medicationReminders.length === 0 && (
+                    <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded">ALL DONE ✅</span>
+                  )}
                 </div>
-                <div className="mt-4 h-24 w-full bg-white/10 rounded-lg" />
+                
+                <div className="space-y-3">
+                  {medicationReminders.length > 0 ? medicationReminders.map((rem) => (
+                    <div key={rem.id} className="flex items-center justify-between p-3 bg-white/40 rounded-xl border border-white/20 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${rem.status === 'Completed' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                          <span className="material-icons text-sm">{rem.status === 'Completed' ? 'check' : 'medication'}</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-800 line-clamp-1">{rem.medicine}</p>
+                          <p className="text-[10px] text-gray-500 font-medium">{rem.time}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {rem.status === 'Pending' && (
+                          <>
+                            <button onClick={() => handleMedAction(rem.id, 'done')} className="p-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                              <span className="material-icons text-xs">done</span>
+                            </button>
+                            <button onClick={() => handleMedAction(rem.id, 'snooze')} className="p-1.5 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 transition-colors">
+                              <span className="material-icons text-xs">timer</span>
+                            </button>
+                          </>
+                        )}
+                        {rem.status !== 'Pending' && (
+                          <span className="text-[10px] font-bold uppercase py-1 px-2 bg-gray-100 rounded text-gray-500">{rem.status}</span>
+                        )}
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="py-4 text-center">
+                      <p className="text-sm text-gray-500">No pending doses for today.</p>
+                      <button onClick={() => setActiveIdx(4)} className="mt-2 text-xs text-indigo-600 font-bold hover:underline">View Prescriptions</button>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Profile card */}
-              <div className="lg:col-span-4 bg-white rounded-2xl shadow-lg p-6">
-                <div className="flex items-center gap-3">
-                  <img src={currentUserInfo.avatar} alt="profile" className="w-12 h-12 rounded-full" />
-                  <div>
-                    <div className="font-semibold text-gray-900">{currentUserInfo.name}</div>
-                    <div className="text-xs text-gray-500">Diagnosis: Mild Hypertension</div>
-                  </div>
-                </div>
-                <div className="mt-4 space-y-3">
-                  <button className="w-full flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-xl px-3 py-2">
-                    <span className="text-sm text-gray-700">Heart Rate</span>
-                    <span className="text-sm font-semibold text-gray-900">112 bpm ↗</span>
+              {/* Latest Medical Records Table */}
+              <div className="md:col-span-2 xl:col-span-3 bg-white/60 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-6 animate-fadeInUp" style={{ animationDelay: '1000ms' }}>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                    <span className="material-icons text-indigo-600">description</span>
+                    Medical Records
+                  </h2>
+                  <button onClick={() => setActiveIdx(1)} className="text-xs font-black text-indigo-600 uppercase tracking-widest hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
+                    View All
                   </button>
-                  <button className="w-full flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-xl px-3 py-2">
-                    <span className="text-sm text-gray-700">Glucose Level</span>
-                    <span className="text-sm font-semibold text-gray-900">9.0 mmol/L ↗</span>
-                  </button>
                 </div>
-              </div>
-
-              {/* Medication reminder */}
-              <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6">
-                <h3 className="font-semibold text-gray-800">Medication Reminder</h3>
-                <p className="mt-2 text-sm text-gray-600">Take your antihypertensive medication at 3:00 PM</p>
-                <div className="mt-4 flex gap-2">
-                  <button className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm">Mark Done</button>
-                  <button className="px-3 py-2 bg-gray-100 rounded-lg text-sm">Snooze</button>
-                </div>
-              </div>
-            </section>
-
-            {/* Records + Upcoming appointments row */}
-            <section className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* My Medical Records table */}
-              <div className="lg:col-span-7 bg-white rounded-2xl shadow-lg p-6">
-                <h2 className="text-xl font-bold text-indigo-700 mb-4">My Medical Records</h2>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-separate border-spacing-y-2">
+                  <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-indigo-100">
-                        <th className="px-4 py-2 text-left text-indigo-700">Date</th>
-                        <th className="px-4 py-2 text-left text-indigo-700">Doctor</th>
-                        <th className="px-4 py-2 text-left text-indigo-700">Diagnosis</th>
-                        <th className="px-4 py-2 text-left text-indigo-700">Prescription</th>
-                        <th className="px-4 py-2 text-left text-indigo-700">Notes</th>
+                      <tr className="border-b border-gray-100">
+                        <th className="pb-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date</th>
+                        <th className="pb-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Doctor / Specialty</th>
+                        <th className="pb-3 text-[10px] font-black text-gray-400 uppercase tracking-widest md:table-cell hidden">Diagnosis</th>
+                        <th className="pb-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {records.map((rec, idx) => (
-                        <tr key={idx} className="hover:bg-indigo-50 transition-colors">
-                          <td className="px-4 py-2 border-b">{rec.date}</td>
-                          <td className="px-4 py-2 border-b">{rec.doctor}</td>
-                          <td className="px-4 py-2 border-b">{rec.diagnosis}</td>
-                          <td className="px-4 py-2 border-b">{rec.prescription}</td>
-                          <td className="px-4 py-2 border-b">{rec.notes}</td>
+                    <tbody className="divide-y divide-gray-50">
+                      {medicalRecords.slice(0, 3).map((rec, idx) => (
+                        <tr key={idx} className="group hover:bg-white/40 transition-colors">
+                          <td className="py-4 text-sm font-bold text-gray-800">{rec.date}</td>
+                          <td className="py-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center text-[10px] font-bold text-indigo-600 border border-indigo-100">
+                                {rec.doctor.split('. ').pop()[0]}
+                              </div>
+                              <span className="text-sm font-medium text-gray-700">{rec.doctor}</span>
+                            </div>
+                          </td>
+                          <td className="py-4 text-sm text-gray-500 md:table-cell hidden">{rec.diagnosis}</td>
+                          <td className="py-4">
+                             <span className="px-2 py-1 bg-green-50 text-green-600 text-[10px] font-black rounded uppercase border border-green-100">VERIFIED</span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1273,25 +1374,30 @@ const PatientDashboard = () => {
                 </div>
               </div>
 
-              {/* Upcoming appointments mock */}
-              <div className="lg:col-span-5 bg-white rounded-2xl shadow-lg p-6">
-                <h3 className="font-semibold text-gray-800 mb-3">Upcoming Appointments</h3>
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-indigo-100" />
-                    <div>
-                      <div className="font-medium text-gray-900">Sophia Bennett</div>
-                      <div className="text-xs text-gray-500">Cardiologist</div>
+              {/* Upcoming Appointments */}
+              <div className="md:col-span-2 xl:col-span-1 bg-white/60 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-6 animate-fadeInUp" style={{ animationDelay: '1200ms' }}>
+                <h3 className="text-lg font-black text-gray-900 mb-6 flex items-center gap-2">
+                  <span className="material-icons text-blue-600">event</span>
+                  Upcoming
+                </h3>
+                <div className="space-y-4">
+                  {appointments.length > 0 ? appointments.slice(0, 2).map((apt, i) => (
+                    <div key={i} className="p-4 bg-white/40 border border-white/20 rounded-2xl shadow-sm hover:translate-x-1 transition-transform">
+                      <p className="text-xs font-black text-blue-600 uppercase mb-1">{apt.date}</p>
+                      <p className="text-sm font-bold text-gray-900">Dr. {apt.doctorName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{apt.time || '03:30 PM'}</p>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-700">May 19th, 2025</div>
-                    <div className="text-xs text-gray-500">03:30 - 04:00 pm</div>
-                  </div>
+                  )) : (
+                    <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl border-dashed py-8 text-center text-gray-400 italic">
+                      No sessions booked
+                      <button onClick={() => setActiveIdx(3)} className="block w-full mt-2 text-xs font-bold text-blue-600 not-italic">Find a Doctor</button>
+                    </div>
+                  )}
                 </div>
               </div>
+
             </section>
-          </>
+          </div>
         );
       case 1: // My Records
         return (

@@ -373,8 +373,8 @@ export const getFamilyNetwork = async (userUid) => {
     const members = networkData.members || [];
 
     // Deduplicate members by email and UID to prevent duplicates
-    // Filter out disabled members first
-    const activeMembers = members.filter(member => !member.isDisabled);
+    // Note: We include all members regardless of isDisabled flag so users can see all connections
+    const activeMembers = members;
 
     const uniqueMembers = activeMembers.reduce((acc, member) => {
       const existingMember = acc.find(m =>

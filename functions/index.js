@@ -179,3 +179,8 @@ exports.assignUserToBranch = hospitalManagement.assignUserToBranch;
 // Physiotherapy functions
 exports.logPhysioSession = physio.logPhysioSession;
 exports.logInjuryRisk = physio.logInjuryRisk;
+
+// Appointment functions (using direct exports from the module)
+exports.createAppointment = appointments.createAppointment;
+exports.getAppointments = appointments.getAppointments;
+exports.updateAppointmentStatus = appointments.updateAppointmentStatus;

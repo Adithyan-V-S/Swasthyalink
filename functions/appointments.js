@@ -60,8 +60,12 @@ exports.getAppointments = onRequest(async (req, res) => {
             q = q.where('patientId', '==', uid);
         }
 
-        const snapshot = await q.orderBy('date').get();
+        const snapshot = await q.get();
         const appointments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Sort in memory to avoid requiring a composite index
+        appointments.sort((a, b) => new Date(a.date) - new Date(b.date));
+        
         res.json({ success: true, appointments });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

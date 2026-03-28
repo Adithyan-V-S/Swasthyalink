@@ -8,6 +8,7 @@ import FamilyRequestManager from "../components/FamilyRequestManager";
 import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";
 import FamilyNetworkManager from "../components/FamilyNetworkManager";
 import { subscribeToConversations } from "../services/chatService";
+import { getFamilyNetwork } from "../services/familyService";
 
 // Patient data will be loaded from real data
 const mockSharedPatient = {
@@ -126,6 +127,22 @@ const FamilyDashboard = () => {
   }, [currentUser]);
 
   // Remove the old useEffect since we're now using the auth context
+
+  // Fetch family network members automatically
+  const fetchFamilyMembers = async () => {
+    if (currentUser?.uid) {
+      try {
+        const members = await getFamilyNetwork(currentUser.uid);
+        setFamilyMembers(members || []);
+      } catch (error) {
+        console.error("Error fetching family members:", error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchFamilyMembers();
+  }, [currentUser]);
 
   useEffect(() => {
     // Filter records based on access level
@@ -416,9 +433,8 @@ const FamilyDashboard = () => {
         </div>
         
         <FamilyNetworkManager onUpdate={() => {
-          console.log("Family network updated");
-          // Force refresh of the family members when network is updated
-          setFamilyMembers([...familyMembers]);
+          console.log("Family network updated, refetching members...");
+          fetchFamilyMembers();
         }} />
       </section>
 
