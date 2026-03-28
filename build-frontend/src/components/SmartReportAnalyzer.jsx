@@ -140,7 +140,8 @@ const SmartReportAnalyzer = () => {
                 },
                 body: JSON.stringify({
                     image: base64Image,
-                    mimeType: selectedImage.type
+                    mimeType: selectedImage.type,
+                    reportType: reportType
                 }),
             });
 
@@ -543,7 +544,7 @@ const SmartReportAnalyzer = () => {
                                 </div>
 
                                 {/* Recommendations / Detailed List - Smoothed */}
-                                <div className="grid grid-cols-1 gap-6">
+                                <div className="grid grid-cols-1 gap-6 print:hidden">
                                     <div className="bg-white rounded-[30px] p-8 border border-gray-100 shadow-xl shadow-indigo-100/10">
                                         <h4 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-3">
                                             <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600">
@@ -552,14 +553,27 @@ const SmartReportAnalyzer = () => {
                                             Clinical Action Plan
                                         </h4>
                                         <div className="grid md:grid-cols-2 gap-4">
-                                            {analysis.recommendations?.map((rec, i) => (
-                                                <div key={i} className="flex items-start gap-3 p-4 bg-gray-50 rounded-2xl hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100 group">
-                                                    <div className="mt-0.5 w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm transition-transform group-hover:scale-110">
-                                                        <span className="material-icons text-[12px] text-indigo-600">arrow_forward</span>
+                                            {analysis.recommendations?.map((rec, i) => {
+                                                const isShare = typeof rec === 'string' && rec.includes("Share this report");
+                                                const isConsult = typeof rec === 'string' && rec.includes("Consult your physician");
+                                                const isClickable = isShare || isConsult;
+
+                                                return (
+                                                    <div 
+                                                        key={i} 
+                                                        onClick={() => {
+                                                            if (isShare) window.location.href = '/familydashboard';
+                                                            if (isConsult) window.location.href = '/appointments';
+                                                        }}
+                                                        className={`flex items-start gap-3 p-4 bg-gray-50 rounded-2xl transition-colors border border-transparent group ${isClickable ? 'cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-sm' : 'hover:bg-indigo-50 hover:border-indigo-100'}`}
+                                                    >
+                                                        <div className="mt-0.5 w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm transition-transform group-hover:scale-110">
+                                                            <span className="material-icons text-[12px] text-indigo-600">{isClickable ? 'arrow_forward' : 'arrow_forward'}</span>
+                                                        </div>
+                                                        <span className={`text-sm font-bold leading-tight ${isClickable ? 'text-indigo-800' : 'text-gray-700'}`}>{rec}</span>
                                                     </div>
-                                                    <span className="text-sm font-bold text-gray-700 leading-tight">{rec}</span>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 </div>

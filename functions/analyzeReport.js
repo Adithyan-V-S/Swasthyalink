@@ -9,7 +9,7 @@ const { onRequest } = require("firebase-functions/v2/https");
 
 exports.analyzeReport = onRequest(async (req, res) => {
     const genAI = new GoogleGenerativeAI(geminiKey.value());
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // Simple CORS implementation
     res.set('Access-Control-Allow-Origin', '*');
@@ -21,16 +21,23 @@ exports.analyzeReport = onRequest(async (req, res) => {
     }
 
     try {
-        const { image, mimeType } = req.body;
+        const { image, mimeType, reportType } = req.body;
 
         if (!image) {
             return res.status(400).json({ success: false, error: 'Image data is required' });
         }
 
-        // Using gemini-flash-latest as discovered in previous diagnostics
-        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+        // Switched to gemini-1.5-flash to avoid 503 high-demand errors on latest alias
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        const prompt = "Analyze this medical lab report. Extract the test names, results, units, and reference ranges. Identify if any result is 'High', 'Low', or 'Normal' based on the reference range. Provide a brief medical summary of the report and what it means for the patient. Provide the output in strictly valid JSON format with this structure: { \"summary\": \"Brief medical summary of the report\", \"results\": [ { \"testName\": \"Hemoglobin\", \"value\": \"14.5\", \"unit\": \"g/dL\", \"status\": \"Normal\", \"referenceRange\": \"13.5-17.5\" } ] }";
+        let promptText = "";
+        if (reportType === 'xray') {
+            promptText = "Analyze this medical X-Ray image. Identify any visible structures, bones, anomalies, fractures, or joint issues. Provide a brief medical summary of the findings. Provide the output in strictly valid JSON format with this structure: { \"summary\": \"Brief medical summary of the X-Ray findings\", \"results\": [ { \"testName\": \"Bone/Joint Area\", \"value\": \"Finding description\", \"unit\": \"\", \"status\": \"Normal/Abnormal\", \"referenceRange\": \"\" } ] }";
+        } else if (reportType === 'scan') {
+            promptText = "Analyze this medical MRI or CT Scan. Identify any visible tissues, organs, anomalies, masses, or lesions. Provide a brief medical summary of the findings. Provide the output in strictly valid JSON format with this structure: { \"summary\": \"Brief medical summary of the scan findings\", \"results\": [ { \"testName\": \"Organ/Tissue region\", \"value\": \"Finding description\", \"unit\": \"\", \"status\": \"Normal/Abnormal\", \"referenceRange\": \"\" } ] }";
+        } else {
+            promptText = "Analyze this medical lab report. Extract the test names, results, units, and reference ranges. Identify if any result is 'High', 'Low', or 'Normal' based on the reference range. Provide a brief medical summary of the report and what it means for the patient. Provide the output in strictly valid JSON format with this structure: { \"summary\": \"Brief medical summary of the report\", \"results\": [ { \"testName\": \"Hemoglobin\", \"value\": \"14.5\", \"unit\": \"g/dL\", \"status\": \"Normal\", \"referenceRange\": \"13.5-17.5\" } ] }";
+        }
 
         const imageParts = [
             {
@@ -41,12 +48,19 @@ exports.analyzeReport = onRequest(async (req, res) => {
             },
         ];
 
-        const result = await model.generateContent([prompt, ...imageParts]);
+        const result = await model.generateContent([promptText, ...imageParts]);
         const response = await result.response;
         const text = response.text();
 
-        // Extract JSON from potential markdown formatting
-        const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        // Extract JSON from potential markdown formatting and conversational fillers
+        let cleanJson = text;
+        const firstBrace = cleanJson.indexOf('{');
+        const lastBrace = cleanJson.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+        } else {
+            cleanJson = cleanJson.replace(/```json/gi, '').replace(/```/g, '').trim();
+        }
 
         let reportData;
         try {
