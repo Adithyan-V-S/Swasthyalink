@@ -118,10 +118,6 @@ const Header = () => {
     setProfileMenuOpen(false);
     navigate('/');
   };
-  const handleSettings = () => {
-    navigate('/settings');
-    setProfileMenuOpen(false);
-  };
   const handleProfile = () => {
     navigate('/profile');
     setProfileMenuOpen(false);
@@ -176,7 +172,6 @@ const Header = () => {
                           </div>
                         )}
                         <button onClick={handleProfile} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-50 rounded">Profile</button>
-                        <button onClick={handleSettings} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-50 rounded">Settings</button>
                         <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 rounded">Logout</button>
                       </div>
                     )}

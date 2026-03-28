@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { FaMicrophone, FaMicrophoneSlash, FaVolumeUp } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
@@ -15,9 +16,18 @@ const COMMANDS = {
     'about': '/about',
     'exercise coach': '/exercise-coach',
     'coach': '/exercise-coach',
-    'report analyzer': '/report-analyzer',
+    'smart report': '/report-analyzer',
     'analyzer': '/report-analyzer',
+    'appointments': '/appointments',
     'settings': '/settings',
+    'doctor dashboard': '/doctordashboard?tab=dashboard',
+    'doctor appointments': '/doctordashboard?tab=appointments',
+    'manage appointments': '/doctordashboard?tab=appointments',
+    'doctor patients': '/doctordashboard?tab=patients',
+    'my patients': '/doctordashboard?tab=patients',
+    'connect patient': '/doctordashboard?tab=connect',
+    'doctor prescriptions': '/doctordashboard?tab=prescriptions',
+    'doctor profile': '/doctordashboard?tab=profile',
 };
 
 const VoiceNavigation = () => {
@@ -27,11 +37,43 @@ const VoiceNavigation = () => {
     const [isSwitching, setIsSwitching] = useState(false);
     const [transcript, setTranscript] = useState('');
     const navigate = useNavigate();
+    const location = useLocation();
+    const { userRole } = useAuth();
     const recognitionRef = useRef(null);
     const wakeWordRecognitionRef = useRef(null);
 
     const handleCommand = useCallback((text) => {
         const lowercaseText = text.toLowerCase();
+
+        // Doctor specific section commands (only if user is a doctor)
+        if (userRole === 'doctor') {
+            const doctorSections = {
+                'dashboard': 'dashboard',
+                'appointments': 'appointments',
+                'manage appointments': 'appointments',
+                'patients': 'patients',
+                'my patients': 'patients',
+                'connect': 'connect',
+                'connect patient': 'connect',
+                'prescriptions': 'prescriptions',
+                'profile': 'profile',
+                'my profile': 'profile'
+            };
+
+            for (const [command, tabId] of Object.entries(doctorSections)) {
+                if (lowercaseText.includes(command)) {
+                    toast.success(`Switching to ${command}...`, { icon: '🩺' });
+                    
+                    // If we're already on the dashboard, use a custom event for instant state change
+                    if (location.pathname === '/doctordashboard') {
+                        window.dispatchEvent(new CustomEvent('doctor-tab-change', { detail: tabId }));
+                    } else {
+                        navigate(`/doctordashboard?tab=${tabId}`);
+                    }
+                    return true;
+                }
+            }
+        }
 
         // Check for exact or partial matches in commands
         let targetRoute = null;

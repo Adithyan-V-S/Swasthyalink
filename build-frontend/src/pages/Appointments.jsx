@@ -101,7 +101,9 @@ const Appointments = () => {
                                             </span>
                                             <h3 className="text-lg font-bold text-gray-900">{appt.date} at {appt.time}</h3>
                                         </div>
-                                        <p className="text-gray-600 font-medium">Doctor ID: {appt.doctorId}</p>
+                                        <p className="text-indigo-600 font-bold mb-1">
+                                            Doctor: <span className="text-gray-900">{doctors.find(d => d.id === appt.doctorId)?.name || 'Dr. ' + (appt.doctorName || appt.doctorId)}</span>
+                                        </p>
                                         <p className="text-gray-400 text-sm mt-1">{appt.reason}</p>
                                     </div>
                                     <button className="text-red-500 text-sm font-semibold hover:text-red-700">Cancel</button>

@@ -46,7 +46,7 @@ const Sidebar = ({ open, onClose }) => {
         { to: "/report-analyzer", label: "Smart Reports" },
         { to: "/exercise-coach", label: "AI Coach" },
         { to: "/eye-exercise", label: "Eye Exercises" },
-        { to: "/settings", label: "Settings" },
+        { to: "/profile", label: "Profile" },
       ],
     };
 

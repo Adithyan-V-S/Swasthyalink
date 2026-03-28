@@ -247,11 +247,7 @@ const PatientDashboard = () => {
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 7v-7m0 0l-9-5m9 5l9-5" /></svg>
       ), badge: (pendingRequests || []).length
     },
-    {
-      label: "Settings", icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
-      )
-    },
+
     {
       label: "Profile", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
@@ -1431,94 +1427,17 @@ const PatientDashboard = () => {
         );
       case 2: // Family
         return renderFamilySection();
-      case 3: // Appointments
-        return (
-          <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">Appointments</h2>
-            <div className="text-center text-gray-500">
-              <p>Appointment management coming soon...</p>
-            </div>
-          </section>
-        );
+      case 3: // Appointments (Redirected via sidebar)
+        return null;
       case 4: // Prescriptions
         return renderPrescriptionsSection();
       case 5: // Doctors
         return renderDoctorsSection();
-      case 6: // Settings
-        return (
-          <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">Settings</h2>
-            <div className="text-center text-gray-500">
-              <p>Settings coming soon...</p>
-            </div>
-          </section>
-        );
-      case 7: // Profile
-        return (
-          <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">Profile</h2>
-            <div className="max-w-2xl mx-auto">
-              <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                <div className="flex items-center space-x-4 mb-4">
-                  <img
-                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || 'User')}&background=4f46e5&color=fff&size=80`}
-                    alt="Profile"
-                    className="w-20 h-20 rounded-full"
-                  />
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-900">{currentUser?.name || 'User'}</h3>
-                    <p className="text-gray-600">{currentUser?.email || 'user@example.com'}</p>
-                    <p className="text-sm text-gray-500">Patient</p>
-                  </div>
-                </div>
-                <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
-                  Edit Profile
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 mb-2">Personal Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Full Name</label>
-                      <p className="text-gray-900">{currentUser?.name || 'Not provided'}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Email</label>
-                      <p className="text-gray-900">{currentUser?.email || 'Not provided'}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Phone</label>
-                      <p className="text-gray-900">Not provided</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
-                      <p className="text-gray-900">Not provided</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 mb-2">Medical Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Blood Type</label>
-                      <p className="text-gray-900">Not provided</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Allergies</label>
-                      <p className="text-gray-900">None recorded</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        );
-      case 8: // Game
+      case 6: // Profile
+        return null; // Handled by redirect
+      case 7: // Game
         return <SnakeGame />;
-      case 9: // AI Coach
+      case 8: // AI Coach
         return <AIExerciseCoach />;
       default:
         return null;
@@ -1544,7 +1463,15 @@ const PatientDashboard = () => {
               {getSidebarLinks().map((link, idx) => (
                 <button
                   key={idx}
-                  onClick={() => setActiveIdx(idx)}
+                  onClick={() => {
+                    if (link.label === "Profile") {
+                      window.location.href = '/profile';
+                    } else if (link.label === "Appointments") {
+                      window.location.href = '/appointments';
+                    } else {
+                      setActiveIdx(idx);
+                    }
+                  }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${activeIdx === idx ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
                     }`}
                 >
@@ -1568,7 +1495,7 @@ const PatientDashboard = () => {
                   <div className="text-xs text-gray-500">Patient</div>
                 </div>
                 <button
-                  onClick={() => setActiveIdx(7)} // Profile tab index
+                  onClick={() => window.location.href = '/profile'}
                   className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
                 >
                   Edit

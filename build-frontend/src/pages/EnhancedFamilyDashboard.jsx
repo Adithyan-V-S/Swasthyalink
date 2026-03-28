@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import FamilyChat from "../components/FamilyChat";
 // Use real Firebase-backed services for notifications and chat
+import { getUserProfile } from '../services/firebaseProfileService';
 import {
   subscribeToNotifications,
   NOTIFICATION_TYPES
@@ -103,6 +104,8 @@ const EnhancedFamilyDashboard = () => {
     emergencyContacts: 0,
     onlineMembers: 0
   });
+  const [userProfile, setUserProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   // Check for tab switching from notifications
   useEffect(() => {
@@ -149,6 +152,34 @@ const EnhancedFamilyDashboard = () => {
     };
 
     loadFamilyData();
+  }, [currentUser]);
+
+  // Load current user profile data
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!currentUser) return;
+      setProfileLoading(true);
+      try {
+        const res = await getUserProfile(currentUser.uid);
+        if (res.success) {
+          setUserProfile(res.data);
+          // Set "Me" as default selected member once profile is loaded
+          setSelectedMember({
+            uid: currentUser.uid,
+            name: (res.data.displayName || currentUser.displayName) + ' (Me)',
+            relationship: 'Owner',
+            photoURL: res.data.photoURL || currentUser.photoURL,
+            accessLevel: 'full'
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching user profile for dashboard:", error);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchUserProfile();
   }, [currentUser]);
 
   // Load records for selected family member
@@ -521,12 +552,8 @@ const EnhancedFamilyDashboard = () => {
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-xl p-8 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">
-              Welcome to Your Family Dashboard
-            </h1>
-            <p className="text-indigo-100 text-lg">
-              Stay connected with your family's health journey
-            </p>
+            <h1 className="text-3xl font-bold mb-2">Welcome to Your Family Dashboard</h1>
+            <p className="text-indigo-100 text-lg">Stay connected with your family's health journey</p>
           </div>
           <div className="hidden md:block">
             <div className="w-24 h-24 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -549,7 +576,6 @@ const EnhancedFamilyDashboard = () => {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
           <div className="flex items-center justify-between">
             <div>
@@ -561,7 +587,6 @@ const EnhancedFamilyDashboard = () => {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
           <div className="flex items-center justify-between">
             <div>
@@ -573,7 +598,6 @@ const EnhancedFamilyDashboard = () => {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
@@ -581,9 +605,7 @@ const EnhancedFamilyDashboard = () => {
               <p className="text-3xl font-bold text-gray-900">{isEmergencyMode ? 'ON' : 'OFF'}</p>
             </div>
             <div className="bg-green-100 p-3 rounded-full">
-              <span className="material-icons text-green-600">
-                {isEmergencyMode ? 'security' : 'shield'}
-              </span>
+              <span className="material-icons text-green-600">{isEmergencyMode ? 'security' : 'shield'}</span>
             </div>
           </div>
         </div>
@@ -595,13 +617,11 @@ const EnhancedFamilyDashboard = () => {
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-800">Patient Overview</h2>
-            <div className="flex items-center space-x-2">
-              {isEmergencyMode && (
-                <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 animate-pulse">
-                  Emergency Active
-                </span>
-              )}
-            </div>
+            {isEmergencyMode && (
+              <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 animate-pulse">
+                Emergency Active
+              </span>
+            )}
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
@@ -612,50 +632,58 @@ const EnhancedFamilyDashboard = () => {
                 Basic Information
               </h3>
               <div className="space-y-3">
-                <div className="flex justify-between">
+                <div className="flex justify-between border-b border-gray-100 pb-2">
                   <span className="text-gray-600">Name</span>
-                  <span className="font-medium">{mockSharedPatient.name}</span>
+                  <span className="font-bold text-gray-900">{userProfile?.displayName || currentUser?.displayName || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between border-b border-gray-100 pb-2">
                   <span className="text-gray-600">Age</span>
-                  <span className="font-medium">{mockSharedPatient.age} years</span>
+                  <span className="font-bold text-gray-900">{userProfile?.age || 'N/A'} years</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between border-b border-gray-100 pb-2">
                   <span className="text-gray-600">Blood Group</span>
-                  <span className="font-medium text-red-600">{mockSharedPatient.bloodGroup}</span>
+                  <span className="font-black text-red-600">{userProfile?.bloodGroup || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Last Updated</span>
-                  <span className="font-medium text-sm">{mockSharedPatient.lastUpdated}</span>
+                  <span className="text-gray-600">Phone</span>
+                  <span className="font-bold text-gray-900 text-sm">{userProfile?.phone || 'N/A'}</span>
                 </div>
               </div>
             </div>
 
             {/* Health Summary */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6">
-              <h3 className="font-semibold text-gray-800 mb-4 flex items-center">
-                <span className="material-icons mr-2 text-blue-600">medical_services</span>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6 border border-blue-100">
+              <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                <span className="material-icons mr-2 text-blue-600">health_and_safety</span>
                 Health Summary
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
-                  <span className="text-gray-600 text-sm">Conditions</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {mockSharedPatient.conditions.map((condition, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-blue-200 text-blue-800 text-xs rounded-full">
-                        {condition}
-                      </span>
-                    ))}
+                  <span className="text-gray-600 text-xs font-bold uppercase tracking-wider">Conditions</span>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {userProfile?.medicalHistory ? (
+                      userProfile.medicalHistory.split(',').map((condition, idx) => (
+                        <span key={idx} className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm">
+                          {condition.trim()}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-400 text-xs italic">No documented conditions</span>
+                    )}
                   </div>
                 </div>
                 <div>
-                  <span className="text-gray-600 text-sm">Allergies</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {mockSharedPatient.allergies.map((allergy, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-red-200 text-red-800 text-xs rounded-full">
-                        {allergy}
-                      </span>
-                    ))}
+                  <span className="text-gray-600 text-xs font-bold uppercase tracking-wider">Known Allergies</span>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {userProfile?.allergies ? (
+                      userProfile.allergies.split(',').map((allergy, idx) => (
+                        <span key={idx} className="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-lg shadow-sm">
+                          {allergy.trim()}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-400 text-xs italic">No known allergies</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -665,22 +693,16 @@ const EnhancedFamilyDashboard = () => {
 
         {/* Family Status & Emergency Control */}
         <div className="space-y-6">
-          {/* Family Status Indicator */}
           <FamilyStatusIndicator onStatusClick={handleStatusClick} />
-
-          {/* Emergency Control */}
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <h2 className="text-2xl font-bold text-red-700 mb-6 flex items-center">
               <span className="material-icons mr-2">emergency</span>
               Emergency Access
             </h2>
-
             <div className="space-y-6">
               <div className="text-center">
-                <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${isEmergencyMode ? 'bg-red-100' : 'bg-gray-100'
-                  }`}>
-                  <span className={`material-icons text-3xl ${isEmergencyMode ? 'text-red-600' : 'text-gray-400'
-                    }`}>
+                <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${isEmergencyMode ? 'bg-red-100' : 'bg-gray-100'}`}>
+                  <span className={`material-icons text-3xl ${isEmergencyMode ? 'text-red-600' : 'text-gray-400'}`}>
                     {isEmergencyMode ? 'emergency' : 'shield'}
                   </span>
                 </div>
@@ -690,20 +712,15 @@ const EnhancedFamilyDashboard = () => {
                     : "Activate emergency access to view critical records when needed."}
                 </p>
               </div>
-
               {isEmergencyMode && emergencyAccessExpiry && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-sm text-red-800 font-medium">Active Until:</p>
-                  <p className="text-sm text-red-600">{emergencyAccessExpiry.toLocaleString()}</p>
+                  <p className="text-sm text-red-800 font-medium tracking-tight">Active Until:</p>
+                  <p className="text-sm text-red-600 font-bold">{emergencyAccessExpiry.toLocaleString()}</p>
                 </div>
               )}
-
               <button
                 onClick={isEmergencyMode ? deactivateEmergencyAccess : activateEmergencyAccess}
-                className={`w-full px-6 py-3 rounded-lg font-semibold transition-all ${isEmergencyMode
-                  ? 'bg-gray-700 text-white hover:bg-gray-800'
-                  : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg'
-                  }`}
+                className={`w-full px-6 py-3 rounded-lg font-semibold transition-all ${isEmergencyMode ? 'bg-gray-700 text-white hover:bg-gray-800' : 'bg-red-600 text-white hover:bg-red-700'}`}
               >
                 {isEmergencyMode ? 'Deactivate Emergency' : 'Activate Emergency'}
               </button>
@@ -716,39 +733,24 @@ const EnhancedFamilyDashboard = () => {
       <div className="bg-white rounded-2xl shadow-lg p-8">
         <h2 className="text-2xl font-bold text-gray-800 mb-6">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button
-            onClick={() => setShowAddMember(true)}
-            className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1"
-          >
+          <button onClick={() => setShowAddMember(true)} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1 text-center">
             <span className="material-icons mb-2 block">person_add</span>
             <span className="text-sm font-medium">Add Member</span>
           </button>
-          <button
-            onClick={() => setActiveTab(1)}
-            className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1"
-          >
+          <button onClick={() => setActiveTab(1)} className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1 text-center">
             <span className="material-icons mb-2 block">inbox</span>
             <span className="text-sm font-medium">View Requests</span>
           </button>
-          <button
-            onClick={() => setActiveTab(3)}
-            className="bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1"
-          >
+          <button onClick={() => setActiveTab(3)} className="bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1 text-center">
             <span className="material-icons mb-2 block">chat</span>
             <span className="text-sm font-medium">Family Chat</span>
           </button>
-          <button
-            onClick={() => setActiveTab(4)}
-            className="bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1"
-          >
+          <button onClick={() => setActiveTab(4)} className="bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl px-6 py-4 hover:shadow-lg transition-all transform hover:-translate-y-1 text-center">
             <span className="material-icons mb-2 block">medical_services</span>
             <span className="text-sm font-medium">Health Records</span>
           </button>
         </div>
       </div>
-
-
-
     </div>
   );
 
@@ -773,7 +775,7 @@ const EnhancedFamilyDashboard = () => {
           </div>
         </div>
 
-        {/* Member Selector Strip - Including Self */}
+        {/* Member Selector Strip */}
         <div className="flex gap-4 overflow-x-auto pb-4 mb-8 custom-scrollbar">
           <button
             onClick={() => setSelectedMember({ uid: currentUser.uid, name: 'Me', relationship: 'Owner', photoURL: currentUser.photoURL, accessLevel: 'full' })}
@@ -807,8 +809,7 @@ const EnhancedFamilyDashboard = () => {
               />
               <div className="text-left">
                 <p className="font-bold text-sm whitespace-nowrap">{member.name}</p>
-                <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedMember?.uid === member.uid ? 'text-indigo-100' : 'text-gray-400'
-                  }`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedMember?.uid === member.uid ? 'text-indigo-100' : 'text-gray-400'}`}>
                   {member.relationship}
                 </p>
               </div>
@@ -863,15 +864,6 @@ const EnhancedFamilyDashboard = () => {
                     <span className={`px-4 py-2 text-[10px] rounded-full font-black uppercase tracking-[0.1em] border-2 ${getAccessLevelColor(record.accessLevel || selectedMember.accessLevel)}`}>
                       {record.accessLevel || selectedMember.accessLevel} Access
                     </span>
-                    {selectedMember.accessLevel === 'full' && (
-                      <button
-                        onClick={() => toast.success('Record saved to your health history')}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                      >
-                        <span className="material-icons text-sm">save_alt</span>
-                        Save to History
-                      </button>
-                    )}
                   </div>
                 </div>
 
@@ -1072,8 +1064,7 @@ const EnhancedFamilyDashboard = () => {
       label: "Family Chat",
       icon: <span className="material-icons text-lg">chat</span>,
       badge: conversations.reduce((total, conv) => {
-        const unreadCount = conv.unread?.[currentUser?.uid] || 0;
-        return total + unreadCount;
+        return total + (conv.unread?.[currentUser?.uid] || 0);
       }, 0),
       description: "Chat with family"
     },

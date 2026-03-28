@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getAuth, signOut } from "firebase/auth";
 import { createNotification, subscribeToNotifications, markNotificationAsRead, NOTIFICATION_TYPES } from "../services/notificationService";
@@ -14,6 +15,7 @@ import { getAppointments, updateAppointmentStatus } from "../services/appointmen
 
 const DoctorDashboard = () => {
   const { currentUser, userRole } = useAuth();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [profile, setProfile] = useState({
     name: "",
@@ -53,7 +55,7 @@ const DoctorDashboard = () => {
       setupNotifications();
       loadAppointments();
 
-      // Check for tab query parameter
+      // Check for tab query parameter initially
       const params = new URLSearchParams(window.location.search);
       const tab = params.get('tab');
       if (tab) setActiveTab(tab);
@@ -90,6 +92,28 @@ const DoctorDashboard = () => {
       setNotification('Please sign in again to access the doctor dashboard.');
     }
   }, [currentUser]);
+
+  // Update tab when location search changes (e.g., from voice navigation)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [location.search]);
+
+  // Listen for voice navigation tab changes
+  useEffect(() => {
+    const handleTabChange = (event) => {
+      const newTab = event.detail;
+      if (newTab) {
+        setActiveTab(newTab);
+      }
+    };
+
+    window.addEventListener('doctor-tab-change', handleTabChange);
+    return () => window.removeEventListener('doctor-tab-change', handleTabChange);
+  }, []);
 
   const setupNotifications = () => {
     if (!currentUser?.uid) return;
@@ -1033,7 +1057,9 @@ const DoctorDashboard = () => {
                             </span>
                             <h3 className="font-bold text-gray-900">{appt.date} at {appt.time}</h3>
                           </div>
-                          <p className="text-sm text-gray-600">Patient ID: {appt.patientId}</p>
+                          <p className="text-sm text-gray-700 font-semibold mb-1">
+                            Patient: <span className="text-blue-600">{patients.find(p => p.patientId === appt.patientId || p.id === appt.patientId)?.patientName || appt.patientName || 'Patient ' + appt.patientId}</span>
+                          </p>
                           <p className="text-sm text-gray-500 mt-1 italic">"{appt.reason}"</p>
                         </div>
                         {appt.status === 'pending' && (
