@@ -95,6 +95,8 @@ const Login = () => {
               navigate("/familydashboard");
             } else if (userData.role === "pharmacy") {
               navigate("/pharmacydashboard");
+            } else if (userData.role === "admin") {
+              navigate("/admindashboard");
             } else if (userData.role === "hospital_admin") {
               navigate("/hospitaladmindashboard");
             } else {
@@ -183,6 +185,8 @@ const Login = () => {
           navigate("/familydashboard");
         } else if (userData.role === "pharmacy") {
           navigate("/pharmacydashboard");
+        } else if (userData.role === "admin") {
+          navigate("/admindashboard");
         } else if (userData.role === "hospital_admin") {
           navigate("/hospitaladmindashboard");
         } else {
@@ -290,6 +294,11 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    // Clear any test/mock user session to avoid conflicts with real Firebase login
+    localStorage.removeItem('testUser');
+    localStorage.removeItem('testUserRole');
+    localStorage.removeItem('presetAdmin');
 
     console.log("Login attempt with:", { email, password });
 
@@ -691,8 +700,9 @@ const Login = () => {
         const userDocSnap = await getDoc(userDocRef);
         const isDoctor = userDocSnap.exists() && userDocSnap.data().role === 'doctor';
         const isNurse = userDocSnap.exists() && userDocSnap.data().role === 'nurse';
+        const isAdmin = userDocSnap.exists() && (userDocSnap.data().role === 'admin' || userDocSnap.data().role === 'hospital_admin');
 
-        if (!user.emailVerified && !isDoctor && !isNurse) {
+        if (!user.emailVerified && !isDoctor && !isNurse && !isAdmin) {
           setError(ERROR_MESSAGES.INVALID_EMAIL);
           setShowResend(true);
           setLoading(false);
@@ -706,9 +716,7 @@ const Login = () => {
           } else if (userData.role === 'nurse') {
             navigate("/nursedashboard");
           } else if (userData.role === 'admin') {
-            navigate("/hospitaladmindashboard");
-          } else if (userData.role === 'pharmacy') {
-            navigate("/pharmacydashboard");
+            navigate("/admindashboard");
           } else if (userData.role === 'hospital_admin') {
             navigate("/hospitaladmindashboard");
           } else {

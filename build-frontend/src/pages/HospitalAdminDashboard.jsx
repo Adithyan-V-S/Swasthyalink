@@ -10,6 +10,9 @@ const HospitalAdminDashboard = () => {
     const [blockchainStatus, setBlockchainStatus] = useState(null);
     const [loading, setLoading] = useState(false);
     const [showAddBranch, setShowAddBranch] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingBranch, setEditingBranch] = useState(null);
+    const [editFormData, setEditFormData] = useState({ newEmail: '', newPhone: '', newPassword: '' });
     const [newBranch, setNewBranch] = useState({ name: '', address: '', phone: '', adminEmail: '', adminPassword: '' });
     const { logout } = useAuth();
     const navigate = useNavigate();
@@ -76,6 +79,34 @@ const HospitalAdminDashboard = () => {
         } catch (error) {
             console.error("Error deleting branch:", error);
             alert("Failed to delete branch.");
+        }
+        setLoading(false);
+    };
+
+    const handleUpdateAdmin = async () => {
+        if (!editingBranch) return;
+        setLoading(true);
+        try {
+            const response = await fetch('https://us-central1-swasthyalink-42535.cloudfunctions.net/updateBranchAdmin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    branchId: editingBranch.id,
+                    ...editFormData
+                })
+            });
+
+            const result = await response.json();
+            if (response.ok && result.success) {
+                alert("Credentials updated successfully!");
+                setShowEditModal(false);
+                fetchBranches();
+            } else {
+                alert("Error: " + (result.error || "Unknown error"));
+            }
+        } catch (error) {
+            console.error("Failed to update credentials:", error);
+            alert("Update failed.");
         }
         setLoading(false);
     };
@@ -238,6 +269,21 @@ const HospitalAdminDashboard = () => {
                                                 <span className="material-icons text-slate-400 group-hover:text-blue-400 text-xl">location_city</span>
                                             </div>
                                             <button
+                                                onClick={() => {
+                                                    setEditingBranch(branch);
+                                                    setEditFormData({
+                                                        newEmail: branch.adminEmail || '',
+                                                        newPhone: branch.phone || '',
+                                                        newPassword: ''
+                                                    });
+                                                    setShowEditModal(true);
+                                                }}
+                                                className="text-slate-500 hover:text-blue-500 transition-colors"
+                                                title="View/Edit Credentials"
+                                            >
+                                                <span className="material-icons text-sm">vpn_key</span>
+                                            </button>
+                                            <button
                                                 onClick={() => handleDeleteBranch(branch.id, branch.name)}
                                                 className="text-slate-500 hover:text-red-500 transition-colors"
                                                 title="Delete Branch"
@@ -310,6 +356,86 @@ const HospitalAdminDashboard = () => {
                     </section>
                 </aside>
             </div>
+
+            {/* Edit Credentials Modal */}
+            {showEditModal && editingBranch && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-blue-400">Manage Credentials</h3>
+                            <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white">
+                                <span className="material-icons">close</span>
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Branch Name</label>
+                                <p className="text-white font-medium">{editingBranch.name}</p>
+                                {!editingBranch.adminEmail && (
+                                    <div className="mt-2 text-xs bg-amber-900/20 border border-amber-500/30 text-amber-500 p-2 rounded-lg">
+                                        <p className="font-bold flex items-center gap-1">
+                                            <span className="material-icons text-sm">warning</span>
+                                            No Admin Assigned
+                                        </p>
+                                        <p className="opacity-80">Please provide an email and password to create the first admin for this branch.</p>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="space-y-4 pt-4 border-t border-slate-700">
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Admin Email</label>
+                                    <input
+                                        type="email"
+                                        value={editFormData.newEmail}
+                                        onChange={(e) => setEditFormData({ ...editFormData, newEmail: e.target.value })}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 outline-none focus:border-blue-500 text-white"
+                                        placeholder="Enter new email"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Admin Phone</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.newPhone}
+                                        onChange={(e) => setEditFormData({ ...editFormData, newPhone: e.target.value })}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 outline-none focus:border-blue-500 text-white"
+                                        placeholder="Enter phone number"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Update Password</label>
+                                    <input
+                                        type="password"
+                                        value={editFormData.newPassword}
+                                        onChange={(e) => setEditFormData({ ...editFormData, newPassword: e.target.value })}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 outline-none focus:border-blue-500 text-white"
+                                        placeholder="Enter new password (optional)"
+                                    />
+                                    <p className="text-[10px] text-slate-500 italic mt-1">Leave blank to keep current password.</p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4 pt-6">
+                                <button
+                                    onClick={() => setShowEditModal(false)}
+                                    className="flex-1 px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleUpdateAdmin}
+                                    disabled={loading}
+                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                                >
+                                    {loading ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

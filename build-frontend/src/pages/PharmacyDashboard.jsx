@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebaseConfig';
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, addDoc, onSnapshot, orderBy } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 
 const PharmacyDashboard = () => {
@@ -11,6 +11,10 @@ const PharmacyDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [showAddMedicine, setShowAddMedicine] = useState(false);
     const [newMedicine, setNewMedicine] = useState({ name: '', stock: 0, price: 0, category: 'General' });
+    const [branchName, setBranchName] = useState('Kottayam Branch'); // Default fallback
+    const [allMedicineNames, setAllMedicineNames] = useState([]);
+    const [filteredSuggestions, setFilteredSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
     const { user, branchId, logout } = useAuth();
     const navigate = useNavigate();
 
@@ -43,6 +47,33 @@ const PharmacyDashboard = () => {
             setPrescriptions(items);
         });
 
+        // 3. Fetch Branch Name
+        const fetchBranchInfo = async () => {
+            if (!branchId) return;
+            try {
+                const branchDoc = await getDoc(doc(db, "hospital_branches", branchId));
+                if (branchDoc.exists()) {
+                    setBranchName(branchDoc.data().name || "Unknown Branch");
+                }
+            } catch (error) {
+                console.error("Error fetching branch name:", error);
+            }
+        };
+
+        // 4. Fetch Global Medicine List for Autocomplete
+        const fetchMedicines = async () => {
+            try {
+                const snapshot = await getDocs(collection(db, "pharmacy"));
+                const names = [...new Set(snapshot.docs.map(doc => doc.data().name))];
+                setAllMedicineNames(names.sort());
+            } catch (error) {
+                console.error("Error fetching medicine list:", error);
+            }
+        };
+
+        fetchBranchInfo();
+        fetchMedicines();
+
         return () => {
             unsubscribeInventory();
             unsubscribePrescriptions();
@@ -51,20 +82,84 @@ const PharmacyDashboard = () => {
 
     const handleAddMedicine = async (e) => {
         e.preventDefault();
+        // Standard Validations
+        if (newMedicine.name.trim() === '') {
+            alert("Medicine name is required.");
+            return;
+        }
+        if (parseFloat(newMedicine.stock) <= 0) {
+            alert("Quantity must be greater than zero.");
+            return;
+        }
+        if (parseFloat(newMedicine.price) <= 0) {
+            alert("Price must be greater than zero.");
+            return;
+        }
+
         try {
-            await addDoc(collection(db, "pharmacy"), {
+            const stockData = {
                 ...newMedicine,
                 branchId: branchId || "kottayam-001",
+                branchName: branchName,
                 companyId: "abc-hospital-group",
                 stock: parseInt(newMedicine.stock),
                 price: parseFloat(newMedicine.price),
                 updatedAt: new Date().toISOString()
+            };
+
+            // 1. Save to Firestore Pharmacy Inventory
+            await addDoc(collection(db, "pharmacy"), stockData);
+
+            // 2. Log to Blockchain (health_ledger) for Integrity
+            await addDoc(collection(db, "health_ledger"), {
+                type: 'PHARMACY_STOCK_ENTRY',
+                medicineName: newMedicine.name,
+                quantity: parseInt(newMedicine.stock),
+                branchId: branchId || "kottayam-001",
+                branchName: branchName,
+                timestamp: new Date().toISOString(),
+                data: { ...stockData }
             });
+
             setNewMedicine({ name: '', stock: 0, price: 0, category: 'General' });
             setShowAddMedicine(false);
+            alert("Stock Entry recorded and anchored to blockchain ledger!");
         } catch (error) {
             console.error("Error adding medicine:", error);
+            alert("An error occurred during stock entry.");
         }
+    };
+
+    const handleMedicineChange = (e) => {
+        const val = e.target.value;
+        setNewMedicine({ ...newMedicine, name: val });
+        
+        if (val.trim() === '') {
+            setFilteredSuggestions([]);
+            setShowSuggestions(false);
+            return;
+        }
+
+        let filtered = [];
+        if (val.length === 1) {
+            // First letter search
+            filtered = allMedicineNames.filter(name => 
+                name.toLowerCase().startsWith(val.toLowerCase())
+            );
+        } else {
+            // Substring search
+            filtered = allMedicineNames.filter(name => 
+                name.toLowerCase().includes(val.toLowerCase())
+            );
+        }
+
+        setFilteredSuggestions(filtered);
+        setShowSuggestions(filtered.length > 0);
+    };
+
+    const handleSelectSuggestion = (name) => {
+        setNewMedicine({ ...newMedicine, name });
+        setShowSuggestions(false);
     };
 
     const handleDispense = async (prescriptionId) => {
@@ -144,7 +239,7 @@ const PharmacyDashboard = () => {
                 <header className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-2xl font-bold">{activeTab === 'inventory' ? 'Medicine Inventory' : 'Prescription Queue'}</h1>
-                        <p className="text-slate-400 text-sm mt-1">Status: <span className="text-emerald-400 font-bold">Online</span> • Kottayam Branch</p>
+                        <p className="text-slate-400 text-sm mt-1">Status: <span className="text-emerald-400 font-bold">Online</span> • {branchName}</p>
                     </div>
                     {activeTab === 'inventory' && (
                         <button
@@ -230,14 +325,32 @@ const PharmacyDashboard = () => {
                             <form onSubmit={handleAddMedicine} className="space-y-4">
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 uppercase mb-2 block ml-1">Medicine Name</label>
-                                    <input
-                                        required
-                                        type="text"
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500 transition-all"
-                                        placeholder="e.g. Paracetamol 500mg"
-                                        value={newMedicine.name}
-                                        onChange={e => setNewMedicine({ ...newMedicine, name: e.target.value })}
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            required
+                                            type="text"
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500 transition-all"
+                                            placeholder="e.g. Paracetamol 500mg"
+                                            value={newMedicine.name}
+                                            onChange={handleMedicineChange}
+                                            onFocus={() => { if (filteredSuggestions.length > 0) setShowSuggestions(true); }}
+                                        />
+                                        
+                                        {showSuggestions && (
+                                            <div className="absolute z-50 w-full mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-48 overflow-y-auto custom-scrollbar">
+                                                {filteredSuggestions.map((name, index) => (
+                                                    <button
+                                                        key={index}
+                                                        type="button"
+                                                        onClick={() => handleSelectSuggestion(name)}
+                                                        className="w-full text-left px-4 py-3 hover:bg-slate-800 text-sm transition-colors border-b border-slate-800/50 last:border-0"
+                                                    >
+                                                        {name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>

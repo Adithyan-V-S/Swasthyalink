@@ -82,14 +82,13 @@ export const AuthProvider = ({ children }) => {
             setBranchId(userData.branchId || null);
             setCompanyId(userData.companyId || null);
 
-            // Update currentUser with Firestore data to ensure consistent UID
+            // Update currentUser with Firestore data while preserving essential Firebase Auth info
             const updatedUser = {
               ...user,
-              ...userData,
-              uid: userDocSnap.id // Use Firestore document ID as the UID (this should override user.uid)
+              ...userData
             };
-            // Force override the uid property to ensure it's correct
-            updatedUser.uid = userDocSnap.id;
+            // Ensure original Firebase UID persists (do not override from Firestore ID)
+            updatedUser.uid = user.uid;
 
             // CRITICAL: Ensure the user object has all necessary Firebase methods
             if (user.getIdToken) {
@@ -97,9 +96,6 @@ export const AuthProvider = ({ children }) => {
             }
             if (user.reload) {
               updatedUser.reload = user.reload.bind(user);
-            }
-            if (user.uid) {
-              updatedUser.uid = user.uid; // Keep original Firebase UID for auth
             }
 
             // Add missing Firebase methods if they don't exist
@@ -206,9 +202,9 @@ export const AuthProvider = ({ children }) => {
     // Treat test users and preset admin as verified
     if (localStorage.getItem('testUser') || isPresetAdmin) return true;
 
-    // If Firestore role resolved to doctor, nurse, or pharmacy, allow access even if Firebase flag isn't set
+    // If Firestore role resolved to staff or admin roles, allow access even if Firebase flag isn't set
     const currentRole = (userRole || '').toLowerCase().trim();
-    if (currentRole === 'doctor' || currentRole === 'nurse' || currentRole === 'pharmacy') return true;
+    if (currentRole === 'doctor' || currentRole === 'nurse' || currentRole === 'pharmacy' || currentRole === 'admin' || currentRole === 'hospital_admin') return true;
 
     return !!currentUser?.emailVerified;
   };

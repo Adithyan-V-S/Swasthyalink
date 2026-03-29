@@ -16,7 +16,7 @@ async function dashboardTest() {
 
     try {
         console.log('🧪 Starting Dashboard Navigation Test...');
-        await driver.get('http://127.0.0.1:5174/login');
+        await driver.get('http://localhost:5174/login');
 
         // Wait for login form
         await driver.wait(until.elementLocated(By.id('login-email')), 10000);

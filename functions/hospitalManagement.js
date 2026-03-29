@@ -15,9 +15,7 @@ const setCors = (res) => {
 /**
  * Create a new Hospital Company
  */
-exports.createHospitalCompany = onRequest(async (req, res) => {
-    setCors(res);
-    if (req.method === 'OPTIONS') return res.status(204).send('');
+exports.createHospitalCompany = onRequest({ cors: true }, async (req, res) => {
     try {
         const { name, branding } = req.body;
         if (!name) return res.status(400).json({ success: false, error: 'Name is required' });
@@ -49,9 +47,7 @@ exports.createHospitalCompany = onRequest(async (req, res) => {
 /**
  * Create a new Hospital Branch (with optional admin user)
  */
-exports.createHospitalBranch = onRequest(async (req, res) => {
-    setCors(res);
-    if (req.method === 'OPTIONS') return res.status(204).send('');
+exports.createHospitalBranch = onRequest({ cors: true }, async (req, res) => {
     try {
         const { companyId, name, address, phone, adminEmail, adminPassword } = req.body;
         if (!companyId || !name) return res.status(400).json({ success: false, error: 'CompanyId and Name are required' });
@@ -79,9 +75,11 @@ exports.createHospitalBranch = onRequest(async (req, res) => {
                     uid: userRecord.uid,
                     email: adminEmail,
                     name: `${name} Admin`,
-                    role: 'hospital_admin',
+                    role: 'admin',
                     branchId: branchId,
                     companyId: companyId,
+                    phone: phone || '',
+                    createdBy: 'group_admin',
                     createdAt: new Date().toISOString()
                 });
                 adminCreated = true;
@@ -115,9 +113,7 @@ exports.createHospitalBranch = onRequest(async (req, res) => {
 /**
  * Associate a user (Doctor/Nurse/Admin) with a branch
  */
-exports.assignUserToBranch = onRequest(async (req, res) => {
-    setCors(res);
-    if (req.method === 'OPTIONS') return res.status(204).send('');
+exports.assignUserToBranch = onRequest({ cors: true }, async (req, res) => {
     try {
         const { uid, branchId, companyId } = req.body;
         if (!uid || !branchId) return res.status(400).json({ success: false, error: 'UID and branchId are required' });
@@ -130,6 +126,111 @@ exports.assignUserToBranch = onRequest(async (req, res) => {
 
         res.json({ success: true, message: 'User assigned to branch successfully' });
     } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * Update Branch Admin Credentials
+ */
+exports.updateBranchAdmin = onRequest({ cors: true }, async (req, res) => {
+    try {
+        const { branchId, newEmail, newPhone, newPassword } = req.body;
+        if (!branchId) return res.status(400).json({ success: false, error: 'branchId is required' });
+
+        // 1. Find the current admin user for this branch
+        const usersRef = db.collection('users');
+        const q = await usersRef.where('branchId', '==', branchId).where('role', '==', 'hospital_admin').limit(1).get();
+        
+        let uid;
+        let adminDoc;
+        let isNew = false;
+
+        if (q.empty) {
+            // If no admin found, we can create one if newEmail and newPassword are provided
+            if (!newEmail || !newPassword) {
+                return res.status(404).json({ 
+                    success: false, 
+                    error: 'No admin assigned to this branch yet. To create one, please provide both Email and a Password.' 
+                });
+            }
+
+            try {
+                const userRecord = await admin.auth().createUser({
+                    email: newEmail,
+                    password: newPassword,
+                    displayName: `Admin`
+                });
+                uid = userRecord.uid;
+                isNew = true;
+            } catch (authError) {
+                if (authError.code === 'auth/email-already-exists') {
+                    return res.status(400).json({ success: false, error: 'Email already exists with another account.' });
+                }
+                throw authError;
+            }
+        } else {
+            adminDoc = q.docs[0];
+            uid = adminDoc.id;
+        }
+
+        const currentData = !isNew ? adminDoc.data() : {};
+
+        // 2. Update Firebase Auth if existing user and Email/Password changed
+        if (!isNew) {
+            try {
+                const updateParams = {};
+                if (newEmail && newEmail !== currentData.email) updateParams.email = newEmail;
+                if (newPassword) updateParams.password = newPassword;
+
+                if (Object.keys(updateParams).length > 0) {
+                    await admin.auth().updateUser(uid, updateParams);
+                    console.log(`Auth record updated for UID: ${uid}`);
+                }
+            } catch (authError) {
+                console.error(`Error updating Auth for UID ${uid}:`, authError.message);
+                if (authError.code === 'auth/user-not-found') {
+                    return res.status(404).json({ 
+                        success: false, 
+                        error: `The user account for this admin (ID: ${uid}) is missing. Please create a new admin or contact support.` 
+                    });
+                }
+                throw authError; // Rethrow other errors for the 500 handler
+            }
+        }
+
+        // 3. Update/Set Firestore User Document
+        const userData = {
+            email: newEmail || currentData.email,
+            phone: newPhone !== undefined ? newPhone : (currentData.phone || ''),
+            role: 'admin',
+            branchId: branchId,
+            updatedAt: new Date().toISOString()
+        };
+
+        if (isNew) {
+            userData.uid = uid;
+            userData.name = 'Branch Admin';
+            userData.createdBy = 'group_admin';
+            userData.createdAt = new Date().toISOString();
+            await db.collection('users').doc(uid).set(userData);
+        } else {
+            await adminDoc.ref.update(userData);
+        }
+
+        // 4. Update branch document email if it changed
+        if (newEmail) {
+            await db.collection('hospital_branches').doc(branchId).update({
+                adminEmail: newEmail
+            });
+        }
+
+        res.json({ 
+            success: true, 
+            message: isNew ? 'New Branch Admin created and linked successfully' : 'Branch Admin credentials updated successfully' 
+        });
+    } catch (error) {
+        console.error("Error updating branch admin:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

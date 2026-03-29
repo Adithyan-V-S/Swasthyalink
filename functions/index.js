@@ -174,6 +174,7 @@ exports.verifyBlockchainIntegrity = onRequest(async (req, res) => {
 // Hospital & Branch Management
 exports.createHospitalCompany = hospitalManagement.createHospitalCompany;
 exports.createHospitalBranch = hospitalManagement.createHospitalBranch;
+exports.updateBranchAdmin = hospitalManagement.updateBranchAdmin;
 exports.assignUserToBranch = hospitalManagement.assignUserToBranch;
 
 // Physiotherapy functions

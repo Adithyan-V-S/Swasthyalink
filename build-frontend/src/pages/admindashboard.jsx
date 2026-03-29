@@ -269,13 +269,14 @@ const AdminDashboard = () => {
         // Fetch from Firestore if authenticated
         console.log("Fetching data from Firestore...");
 
-        // Fetch doctors (filter out disabled ones)
+        // Fetch doctors (filter by branch and exclude disabled)
         const doctorsSnapshot = await getDocs(collection(db, "users"));
+        const currentBranchId = branchInfo?.id;
         const doctorsData = doctorsSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(user => user.role === "doctor" && !user.isDisabled);
+          .filter(u => u.role === "doctor" && !u.isDisabled && (u.branchId === currentBranchId || !currentBranchId));
 
-        console.log("Fetched doctors from Firestore:", doctorsData);
+        console.log(`Fetched doctors for branch ${currentBranchId}:`, doctorsData);
         setDoctors(doctorsData);
 
         // Fetch patients (filter out disabled ones)
@@ -287,20 +288,22 @@ const AdminDashboard = () => {
         console.log("Fetched patients from Firestore:", patientsData);
         setPatients(patientsData);
 
-        // Fetch staff
+        // Fetch staff (e.g. Nurses) and filter by branch
         const staffSnapshot = await getDocs(collection(db, "staff"));
-        const staffData = staffSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const staffData = staffSnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(s => s.branchId === currentBranchId || !currentBranchId);
         setStaff(staffData);
 
-        // Fetch pharmacy staff
+        // Fetch pharmacy staff and filter by branch
         const pharmacySnapshot = await getDocs(collection(db, "users"));
         const pharmacyData = pharmacySnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(user => user.role === "pharmacy" && !user.isDisabled);
-        console.log("Fetched pharmacy staff from Firestore:", pharmacyData);
+          .filter(u => u.role === "pharmacy" && !u.isDisabled && (u.branchId === currentBranchId || !currentBranchId));
+        console.log(`Fetched pharmacy staff for branch ${currentBranchId}:`, pharmacyData);
         setPharmacy(pharmacyData);
 
-        // Fetch all users for user management (filter out disabled ones)
+        // Fetch all legitimate users (Patients global, Staff branch-specific, exclude admins)
         const usersSnapshot = await getDocs(collection(db, "users"));
         const usersData = usersSnapshot.docs
           .map(doc => ({
@@ -309,8 +312,22 @@ const AdminDashboard = () => {
             authMethod: doc.data().uid ? 'Google' : 'Email',
             createdAt: doc.data().createdAt || 'Unknown'
           }))
-          .filter(user => !user.isDisabled);
-        console.log("Fetched all users from Firestore:", usersData);
+          .filter(u => {
+            if (u.isDisabled) return false;
+            if (u.role === "hospital_admin" || u.role === "admin") return false;
+            
+            // Patients are global
+            if (u.role === "patient") return true;
+
+            // Health staff (doctors/pharmacy) must match the branch
+            const isStaff = u.role === "doctor" || u.role === "pharmacy" || u.role === "nurse";
+            if (isStaff) {
+              return u.branchId === currentBranchId || !currentBranchId;
+            }
+
+            return true; // Other roles are global by default
+          });
+        console.log(`Scoped users list for branch ${currentBranchId}:`, usersData);
         setUsers(usersData);
 
         setStorageMode('firestore');

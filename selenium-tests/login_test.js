@@ -16,7 +16,7 @@ async function loginTest() {
 
     try {
         console.log('🧪 Starting Login Test...');
-        await driver.get('http://127.0.0.1:5174/login');
+        await driver.get('http://localhost:5174/login');
 
         console.log('📍 Navigated to login page.');
 
