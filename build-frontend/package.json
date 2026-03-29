@@ -31,6 +31,7 @@
     "react-router-dom": "^6.26.1",
     "react-toastify": "^11.0.5",
     "react-webcam": "^7.2.0",
+    "recharts": "^3.8.1",
     "sweetalert2": "^11.26.2"
   },
   "devDependencies": {

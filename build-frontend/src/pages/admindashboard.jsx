@@ -4,6 +4,8 @@ import { auth, db } from "../firebaseConfig";
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, setDoc } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 import { signInAnonymously, onAuthStateChanged, createUserWithEmailAndPassword } from "firebase/auth";
+import { motion, AnimatePresence } from "framer-motion";
+import toast, { Toaster } from "react-hot-toast";
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -410,6 +412,56 @@ const AdminDashboard = () => {
     }
   };
 
+  // Form Validation Logic
+  const validateEmail = (email) => {
+    return String(email)
+      .toLowerCase()
+      .match(
+        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+      );
+  };
+
+  const validatePhone = (phone) => {
+    // Basic phone validation (at least 10 digits)
+    const digits = phone.replace(/\D/g, "");
+    return digits.length >= 10;
+  };
+
+  const validateForm = () => {
+    if (!formData.name || formData.name.trim().length < 2) {
+      toast.error("Please enter a valid name (min 2 characters)");
+      return false;
+    }
+
+    if (!formData.email || !validateEmail(formData.email)) {
+      toast.error("Please enter a valid email address");
+      return false;
+    }
+
+    if (!isEditing && (!formData.password || formData.password.length < 6)) {
+      toast.error("Password must be at least 6 characters long");
+      return false;
+    }
+
+    if (formData.phone && !validatePhone(formData.phone)) {
+      toast.error("Please enter a valid phone number (at least 10 digits)");
+      return false;
+    }
+
+    if (activeTab === "doctors") {
+      if (!formData.specialization) {
+        toast.error("Please select a specialization");
+        return false;
+      }
+      if (!formData.license) {
+        toast.error("Please enter a medical license number");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   // Generate auto credentials
   const generateCredentials = () => {
     const timestamp = Date.now();
@@ -813,6 +865,8 @@ const AdminDashboard = () => {
         uid: firebaseUser.uid,
         name: formData.name.trim(),
         email: email,
+        password: password,
+        generatedPassword: password, // For admin copy
         role: 'nurse',
         branchId: branchInfo.id,
         companyId: 'abc-hospital-group',
@@ -832,7 +886,7 @@ const AdminDashboard = () => {
         nurseId: firebaseUser.uid
       });
 
-      alert(`Nurse added successfully!\nEmail: ${email}`);
+      toast.success(`Nurse added successfully!`);
 
       setFormData({
         name: "",
@@ -864,6 +918,8 @@ const AdminDashboard = () => {
         id: `PHARM_MOCK_${Date.now()}`,
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        generatedPassword: formData.password, // For admin copy
         role: 'pharmacy',
         branchId: branchInfo.id,
         phone: formData.phone.trim(),
@@ -872,7 +928,7 @@ const AdminDashboard = () => {
       };
       mockPharmacy.push(newPharmacist);
       localStorage.setItem('mockPharmacy', JSON.stringify(mockPharmacy));
-      alert(`Pharmacy Staff added successfully (Demo Mode)!`);
+      toast.success(`Pharmacy Staff added successfully (Demo Mode)!`);
       resetForm();
       setShowAddForm(false);
       fetchData();
@@ -893,6 +949,8 @@ const AdminDashboard = () => {
         uid: firebaseUser.uid,
         name: formData.name.trim(),
         email: email,
+        password: password,
+        generatedPassword: password, // For admin copy
         role: 'pharmacy',
         branchId: branchInfo.id,
         companyId: 'abc-hospital-group',
@@ -905,7 +963,7 @@ const AdminDashboard = () => {
 
       await setDoc(doc(db, "users", firebaseUser.uid), pharmacistData);
 
-      alert(`Pharmacy Staff added successfully!\nEmail: ${email}`);
+      toast.success(`Pharmacy Staff added successfully!`);
 
       resetForm();
       setShowAddForm(false);
@@ -995,7 +1053,7 @@ const AdminDashboard = () => {
         localStorage.setItem(storageKey, JSON.stringify(updatedData));
       }
 
-      alert(`✨ ${roleLabel} updated successfully!`);
+      toast.success(`✨ ${roleLabel} updated successfully!`);
       setShowAddForm(false);
       setIsEditing(false);
       setEditingItem(null);
@@ -1076,6 +1134,9 @@ const AdminDashboard = () => {
   };
 
   const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
     if (activeTab === "doctors") {
       if (isEditing) {
         handleUpdateDoctor(e);
@@ -1116,6 +1177,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      <Toaster position="top-right" reverseOrder={false} />
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1225,65 +1287,34 @@ const AdminDashboard = () => {
 
               {/* Analytics Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-6 shadow-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-blue-200 text-sm font-medium">Total Patients</p>
-                      <p className="text-3xl font-bold text-white">{analytics.totalPatients}</p>
-                      <p className="text-blue-200 text-sm">+{analytics.patientGrowth}% from last month</p>
+                {[
+                  { label: "Total Patients", value: analytics.totalPatients, sub: `+${analytics.patientGrowth}% from last month`, icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", color: "from-blue-600 to-blue-700", iconColor: "bg-blue-500", subColor: "text-blue-200" },
+                  { label: "Total Doctors", value: analytics.totalDoctors, sub: "Active medical staff", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z", color: "from-green-600 to-green-700", iconColor: "bg-green-500", subColor: "text-green-200" },
+                  { label: "Total Revenue", value: `$${analytics.totalRevenue.toLocaleString()}`, sub: `+${analytics.revenueGrowth}% from last month`, icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1", color: "from-purple-600 to-purple-700", iconColor: "bg-purple-500", subColor: "text-purple-200" },
+                  { label: "Appointments", value: analytics.appointments, sub: "Today's appointments", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", color: "from-orange-600 to-orange-700", iconColor: "bg-orange-500", subColor: "text-orange-200" }
+                ].map((card, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    whileHover={{ scale: 1.02 }}
+                    className={`bg-gradient-to-r ${card.color} rounded-xl p-6 shadow-lg`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className={`${card.subColor} text-sm font-medium`}>{card.label}</p>
+                        <p className="text-3xl font-bold text-white">{card.value}</p>
+                        <p className={`${card.subColor} text-sm`}>{card.sub}</p>
+                      </div>
+                      <div className={`w-12 h-12 ${card.iconColor} rounded-lg flex items-center justify-center`}>
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={card.icon} />
+                        </svg>
+                      </div>
                     </div>
-                    <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl p-6 shadow-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-green-200 text-sm font-medium">Total Doctors</p>
-                      <p className="text-3xl font-bold text-white">{analytics.totalDoctors}</p>
-                      <p className="text-green-200 text-sm">Active medical staff</p>
-                    </div>
-                    <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl p-6 shadow-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-purple-200 text-sm font-medium">Total Revenue</p>
-                      <p className="text-3xl font-bold text-white">${analytics.totalRevenue.toLocaleString()}</p>
-                      <p className="text-purple-200 text-sm">+{analytics.revenueGrowth}% from last month</p>
-                    </div>
-                    <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-orange-600 to-orange-700 rounded-xl p-6 shadow-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-orange-200 text-sm font-medium">Appointments</p>
-                      <p className="text-3xl font-bold text-white">{analytics.appointments}</p>
-                      <p className="text-orange-200 text-sm">Today's appointments</p>
-                    </div>
-                    <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
+                  </motion.div>
+                ))}
               </div>
 
               {/* Recent Activity */}
@@ -1313,41 +1344,49 @@ const AdminDashboard = () => {
           )}
 
           {/* Other Tabs Content */}
-          {activeTab !== "overview" && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-white capitalize">
-                  {activeTab === "users" && "Manage Users"}
-                  {activeTab === "doctors" && "Manage Doctors"}
-                  {activeTab === "staff" && "Manage Nurse Staff"}
-                  {activeTab === "pharmacy" && "Manage Pharmacy"}
-                </h2>
-                {activeTab !== "users" && (
-                  <button
-                    onClick={() => {
-                      resetForm();
-                      setIsEditing(false);
-                      setShowAddForm(true);
-                    }}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    <span>Add {activeTab === "staff" ? "Nurse Staff" : activeTab.slice(0, -1)}</span>
-                  </button>
-                )}
-                {activeTab === "users" && (
-                  <div className="text-gray-400 text-sm">
-                    Users register automatically through the login system
-                  </div>
-                )}
-              </div>
+          <AnimatePresence mode="wait">
+            {activeTab !== "overview" && (
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-6"
+              >
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-white capitalize">
+                    {activeTab === "users" && "Manage Users"}
+                    {activeTab === "doctors" && "Manage Doctors"}
+                    {activeTab === "staff" && "Manage Nurse Staff"}
+                    {activeTab === "pharmacy" && "Manage Pharmacy"}
+                  </h2>
+                  {activeTab !== "users" && (
+                    <button
+                      onClick={() => {
+                        resetForm();
+                        setIsEditing(false);
+                        setShowAddForm(true);
+                      }}
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      <span>Add {activeTab === "staff" ? "Nurse Staff" : activeTab.slice(0, -1)}</span>
+                    </button>
+                  )}
+                  {activeTab === "users" && (
+                    <div className="text-gray-400 text-sm">
+                      Users register automatically through the login system
+                    </div>
+                  )}
+                </div>
 
-              <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-700">
-                    <thead className="bg-gray-700">
+                <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-700">
+                      <thead className="bg-gray-700">
                       <tr>
                         {activeTab === "users" && (
                           <>
@@ -1374,6 +1413,7 @@ const AdminDashboard = () => {
                           <>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Name</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Password</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Role</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Phone</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
@@ -1383,6 +1423,7 @@ const AdminDashboard = () => {
                           <>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Name</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Password</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Role</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Phone</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
@@ -1508,11 +1549,49 @@ const AdminDashboard = () => {
                       {activeTab === "staff" && staff.filter(m => m.status !== 'disabled').map((member) => (
                         <tr key={member.id} className="hover:bg-gray-700">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{member.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.email}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <div className="flex items-center space-x-2">
+                              <span className="truncate max-w-[150px]" title={member.email}>{member.email}</span>
+                              <button
+                                onClick={() => copyToClipboard(member.email, 'email')}
+                                className="text-blue-400 hover:text-blue-300 transition-colors p-1 rounded hover:bg-gray-600"
+                                title="Copy email"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-xs bg-gray-700 px-2 py-1 rounded border">
+                                {(member.password || member.generatedPassword) ? '••••••••' : 'N/A'}
+                              </span>
+                              {(member.password || member.generatedPassword) && (
+                                <button
+                                  onClick={() => copyToClipboard(member.password || member.generatedPassword, 'password')}
+                                  className="text-green-400 hover:text-green-300 transition-colors p-1 rounded hover:bg-gray-600"
+                                  title="Copy password"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.department || member.role}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.phone}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex space-x-3">
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => copyToClipboard(`Email: ${member.email}\nPassword: ${member.password || member.generatedPassword}`, 'credentials')}
+                                className="text-purple-400 hover:text-purple-300 transition-colors text-xs bg-purple-900 px-2 py-1 rounded"
+                                title="Copy both email and password"
+                              >
+                                Copy All
+                              </button>
                               <button
                                 onClick={() => handleEditStaff(member)}
                                 className="text-blue-400 hover:text-blue-300 transition-colors"
@@ -1532,11 +1611,49 @@ const AdminDashboard = () => {
                       {activeTab === "pharmacy" && pharmacy.map((member) => (
                         <tr key={member.id} className="hover:bg-gray-700">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{member.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.email}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <div className="flex items-center space-x-2">
+                              <span className="truncate max-w-[150px]" title={member.email}>{member.email}</span>
+                              <button
+                                onClick={() => copyToClipboard(member.email, 'email')}
+                                className="text-blue-400 hover:text-blue-300 transition-colors p-1 rounded hover:bg-gray-600"
+                                title="Copy email"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-xs bg-gray-700 px-2 py-1 rounded border">
+                                {(member.password || member.generatedPassword) ? '••••••••' : 'N/A'}
+                              </span>
+                              {(member.password || member.generatedPassword) && (
+                                <button
+                                  onClick={() => copyToClipboard(member.password || member.generatedPassword, 'password')}
+                                  className="text-green-400 hover:text-green-300 transition-colors p-1 rounded hover:bg-gray-600"
+                                  title="Copy password"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">Pharmacist</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.phone}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex space-x-3">
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => copyToClipboard(`Email: ${member.email}\nPassword: ${member.password || member.generatedPassword}`, 'credentials')}
+                                className="text-purple-400 hover:text-purple-300 transition-colors text-xs bg-purple-900 px-2 py-1 rounded"
+                                title="Copy both email and password"
+                              >
+                                Copy All
+                              </button>
                               <button
                                 onClick={() => handleEditStaff(member)}
                                 className="text-blue-400 hover:text-blue-300 transition-colors"
@@ -1557,15 +1674,27 @@ const AdminDashboard = () => {
                   </table>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
-        </main>
+        </AnimatePresence>
+      </main>
       </div>
 
       {/* Add Form Modal */}
-      {showAddForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-8 border w-96 shadow-2xl rounded-xl bg-gray-800 border-gray-700">
+      <AnimatePresence>
+        {showAddForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative mx-auto p-8 border w-full max-w-md shadow-2xl rounded-xl bg-gray-800 border-gray-700"
+            >
             <div className="mt-3">
               <h3 className="text-xl font-bold text-white mb-6">
                 {isEditing
@@ -1697,12 +1826,13 @@ const AdminDashboard = () => {
                   >
                     {isEditing ? 'Update' : 'Add'}
                   </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
